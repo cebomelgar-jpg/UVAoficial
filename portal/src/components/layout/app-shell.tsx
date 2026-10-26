@@ -195,7 +195,7 @@ export function AppShell({
     <div className="portal-canvas min-h-screen">
       <div className="pointer-events-none fixed inset-0 grain" />
 
-      <header className="no-print sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-ink/10 bg-paper/85 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="no-print z-40 flex items-center justify-between gap-3 border-b border-ink/10 bg-paper/85 px-4 py-3 backdrop-blur lg:hidden">
         <button
           type="button"
           onClick={() => setMenuOpen(true)}

@@ -8,14 +8,21 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  MapPin,
   UserPlus,
 } from "lucide-react";
 import { registerAction } from "@/lib/actions/auth";
-import type { ActionState } from "@/lib/types";
+import type { ActionState, Branch } from "@/lib/types";
 
 const initialState: ActionState = {};
 
-export function RegisterForm() {
+export function RegisterForm({
+  branches,
+  defaultBranchId,
+}: {
+  branches: Branch[];
+  defaultBranchId: string;
+}) {
   const [state, formAction, pending] = useActionState(
     registerAction,
     initialState,
@@ -89,6 +96,32 @@ export function RegisterForm() {
             minLength={6}
             maxLength={30}
           />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label htmlFor="branchId" className="label">
+            Sede
+          </label>
+          <div className="relative">
+            <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            <select
+              id="branchId"
+              name="branchId"
+              className="select pl-9"
+              defaultValue={defaultBranchId}
+              required
+            >
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name} · {branch.city}, {branch.province}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted">
+            Vas a ver el catálogo y hacer pedidos con esta sede. Podés cambiarla
+            desde tu perfil.
+          </p>
         </div>
 
         <div className="sm:col-span-2">

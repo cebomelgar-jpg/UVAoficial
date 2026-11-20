@@ -459,9 +459,11 @@ export function AnalyticsBreakdowns({ data }: { data: AnalyticsData }) {
 export function AnalyticsRangeTabs({
   active,
   basePath,
+  extraParams,
 }: {
   active: AnalyticsData["range"];
   basePath: string;
+  extraParams?: Record<string, string | undefined>;
 }) {
   const options: Array<{ value: AnalyticsData["range"]; label: string; hint: string }> = [
     { value: "semana", label: "Semana", hint: "7 días" },
@@ -469,12 +471,21 @@ export function AnalyticsRangeTabs({
     { value: "anio", label: "Año", hint: "12 meses" },
   ];
 
+  function hrefFor(range: AnalyticsData["range"]) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(extraParams ?? {})) {
+      if (value) params.set(key, value);
+    }
+    params.set("rango", range);
+    return `${basePath}?${params.toString()}`;
+  }
+
   return (
     <div className="inline-flex rounded-full border border-ink/10 bg-white/70 p-1 shadow-sm">
       {options.map((option) => (
         <Link
           key={option.value}
-          href={`${basePath}?rango=${option.value}`}
+          href={hrefFor(option.value)}
           scroll={false}
           aria-current={active === option.value ? "page" : undefined}
           className={cn(

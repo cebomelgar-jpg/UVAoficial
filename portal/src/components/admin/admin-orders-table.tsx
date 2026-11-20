@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
+import { BranchBadge } from "@/components/ui/branch-badge";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/order-status-badge";
 import { ProductImage } from "@/components/catalog/product-image";
 import { useToast } from "@/components/providers/toast-provider";
@@ -94,6 +95,8 @@ export function AdminOrdersTable({
         order.notes ?? "",
         order.therapeutic_notes ?? "",
         order.profile?.full_name ?? "",
+        order.branch?.name ?? "",
+        order.branch?.city ?? "",
         ...order.items.map((item) => item.product_name),
       ]
         .join(" ")
@@ -111,6 +114,7 @@ export function AdminOrdersTable({
     const headers = [
       "Pedido",
       "Fecha",
+      "Sede",
       "Paciente",
       "Email",
       "Teléfono",
@@ -127,6 +131,7 @@ export function AdminOrdersTable({
     const rows = filtered.map((order) => [
       formatOrderNumber(order.order_number),
       formatDateTime(order.created_at),
+      order.branch?.name ?? "Sin sede",
       order.patient_name,
       order.patient_email ?? "",
       order.contact_phone,
@@ -200,7 +205,7 @@ export function AdminOrdersTable({
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar pedido, paciente o producto"
+                placeholder="Buscar pedido, paciente, sede o producto"
                 className="input h-9 py-2 pl-9 pr-8 text-xs"
                 aria-label="Buscar pedidos"
               />
@@ -247,6 +252,7 @@ export function AdminOrdersTable({
             <tr>
               <th>Pedido</th>
               <th>Paciente</th>
+              <th>Sede</th>
               <th>Productos</th>
               <th>Entrega</th>
               <th>Total</th>
@@ -387,6 +393,9 @@ function OrderRow({
           <Phone className="size-2.5" />
           {order.contact_phone}
         </a>
+      </td>
+      <td>
+        <BranchBadge branch={order.branch} />
       </td>
       <td>
         <p className="max-w-48 truncate text-[11px] text-ink">
@@ -533,11 +542,13 @@ function AdminOrderDetail({ order }: { order: AdminOrder }) {
       <div className="flex flex-wrap items-center gap-2">
         <OrderStatusBadge status={order.status} />
         <PaymentStatusBadge status={order.payment_status} />
+        <BranchBadge branch={order.branch} />
         <span className="chip">{FULFILLMENT_LABELS[order.fulfillment_method]}</span>
         <span className="chip">{PAYMENT_METHOD_LABELS[order.payment_method]}</span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <InfoBlock label="Sede del catálogo" value={order.branch?.name ?? "Sin sede"} />
         <InfoBlock label="Paciente" value={order.patient_name} />
         <InfoBlock label="Teléfono" value={order.contact_phone} />
         <InfoBlock label="Email" value={order.patient_email ?? "—"} />

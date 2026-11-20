@@ -7,8 +7,38 @@
 -- No inventamos precios ni concentraciones que no estén publicadas.
 -- La ficha "Genética 07 · A definir" y las fichas de vapes quedan reservadas
 -- para que el administrador las complete sin tocar código.
+--
+-- El seed es idempotente en ambos esquemas:
+--   * Antes de la migración multi-sede usa `on conflict (slug)`.
+--   * Después de la migración multi-sede detecta `products.branch_id` y carga
+--     el catálogo en Paraná con `on conflict (branch_id, slug)`.
+-- Así se puede volver a ejecutar sin romper la restricción NOT NULL ni la
+-- unicidad compuesta.
 
-insert into public.products (
+drop table if exists _seed_catalog;
+
+create temp table _seed_catalog (
+  slug text primary key,
+  name text not null,
+  category text not null,
+  description text,
+  thc text,
+  cbd text,
+  sativa_percent integer,
+  indica_percent integer,
+  aromas text[] not null,
+  flavors text[] not null,
+  effects text[] not null,
+  price numeric(12, 2) not null,
+  stock integer not null,
+  presentation text,
+  image_url text,
+  active boolean not null,
+  featured boolean not null,
+  sort_order integer not null
+);
+
+insert into _seed_catalog (
   slug, name, category, description, thc, cbd, sativa_percent, indica_percent,
   aromas, flavors, effects, price, stock, presentation, image_url, active, featured, sort_order
 )
@@ -99,5 +129,56 @@ values
     null, null, null, null,
     array[]::text[], array[]::text[], array[]::text[],
     0, 0, 'Vape', '/products/vape-placeholder.svg', false, false, 20
-  )
-on conflict (slug) do nothing;
+  );
+
+do $$
+declare
+  v_has_branch boolean;
+  v_branch_id uuid;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'products'
+      and column_name = 'branch_id'
+  ) into v_has_branch;
+
+  if v_has_branch then
+    select id into v_branch_id
+    from public.branches
+    where slug = 'parana';
+
+    if v_branch_id is null then
+      raise exception
+        'No existe la sede Paraná. Aplicá la migración multi-sede antes de re-ejecutar el seed.';
+    end if;
+
+    insert into public.products (
+      branch_id, slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    )
+    select
+      v_branch_id, slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    from _seed_catalog
+    on conflict (branch_id, slug) do nothing;
+  else
+    insert into public.products (
+      slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    )
+    select
+      slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    from _seed_catalog
+    on conflict (slug) do nothing;
+  end if;
+end
+$$;
+
+drop table if exists _seed_catalog;

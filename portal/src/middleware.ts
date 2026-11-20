@@ -124,26 +124,36 @@ async function handleAuthenticatedRequest(
     return redirectWithSession(url, response);
   }
 
-  if (isPathWithin(pathname, "/admin")) {
+  if (isPathWithin(pathname, "/admin") || isPathWithin(pathname, "/portal")) {
     if (!supabase) {
       return redirectToLogin(request, pathname, "unavailable", response);
     }
 
     const { data: profile, error } = await supabase
       .from("profiles")
-      .select("role")
+      .select("*")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error) {
-      logMiddlewareError("No se pudo comprobar el rol del administrador", error);
+      logMiddlewareError("No se pudo comprobar el perfil", error);
     }
 
-    if (profile?.role !== "admin") {
+    const role = (profile as { role?: string } | null)?.role;
+    const status = (profile as { status?: string } | null)?.status ?? "approved";
+
+    if (isPathWithin(pathname, "/admin")) {
+      if (role !== "admin" || status !== "approved") {
+        const url = request.nextUrl.clone();
+        url.pathname = role === "admin" ? "/pendiente" : "/portal";
+        url.search = "";
+        if (role !== "admin") url.searchParams.set("error", "forbidden");
+        return redirectWithSession(url, response);
+      }
+    } else if (status !== "approved") {
       const url = request.nextUrl.clone();
-      url.pathname = "/portal";
+      url.pathname = "/pendiente";
       url.search = "";
-      url.searchParams.set("error", "forbidden");
       return redirectWithSession(url, response);
     }
   }

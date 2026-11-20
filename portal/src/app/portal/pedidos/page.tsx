@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { BranchBadge } from "@/components/ui/branch-badge";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/order-status-badge";
 import { ProductImage } from "@/components/catalog/product-image";
 import { requireProfile } from "@/lib/auth";
@@ -75,6 +76,7 @@ export default async function OrdersPage() {
                     </p>
                     <OrderStatusBadge status={order.status} />
                     <PaymentStatusBadge status={order.payment_status} />
+                    <BranchBadge branch={order.branch} />
                   </div>
                   <p className="flex items-center gap-1.5 text-xs text-muted">
                     <CalendarDays className="size-3.5" />

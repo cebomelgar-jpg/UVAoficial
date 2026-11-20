@@ -4,7 +4,9 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireUser } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
+import { encryptPassword, isCredentialStorageConfigured } from "@/lib/credentials";
 import {
   firstZodError,
   loginSchema,
@@ -14,12 +16,7 @@ import {
 import type { ActionState } from "@/lib/types";
 import type { AuthResponse, AuthTokenResponsePassword } from "@supabase/supabase-js";
 import { PORTAL_URL } from "@/lib/config";
-
-function safeNext(value: FormDataEntryValue | null) {
-  if (typeof value !== "string") return "/portal";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/portal";
-  return value;
-}
+import { safeNext } from "@/lib/safe-redirect";
 
 function resolveOrigin(originHeader: string | null) {
   if (originHeader) {
@@ -82,6 +79,37 @@ export async function loginAction(
   redirect(safeNext(formData.get("next")));
 }
 
+async function storeInitialPassword(userId: string, password: string) {
+  if (!isAdminClientConfigured()) {
+    console.warn(
+      "[auth] SUPABASE_SERVICE_ROLE_KEY no configurado; no se pudo guardar la contraseña cifrada.",
+    );
+    return;
+  }
+  if (!isCredentialStorageConfigured()) {
+    console.warn(
+      "[auth] No hay clave de cifrado; no se pudo guardar la contraseña cifrada.",
+    );
+    return;
+  }
+  try {
+    const adminClient = createAdminClient();
+    const { error } = await adminClient.from("profile_credentials").upsert(
+      {
+        profile_id: userId,
+        password_ciphertext: encryptPassword(password),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "profile_id" },
+    );
+    if (error) {
+      console.error("[auth] No se pudo guardar la contraseña cifrada.", error.message);
+    }
+  } catch (error) {
+    console.error("[auth] Error al guardar la contraseña cifrada.", error);
+  }
+}
+
 export async function registerAction(
   _previousState: ActionState,
   formData: FormData,
@@ -90,6 +118,7 @@ export async function registerAction(
     fullName: formData.get("fullName"),
     phone: formData.get("phone"),
     email: formData.get("email"),
+    branchId: formData.get("branchId"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
     acceptTerms: formData.get("acceptTerms"),
@@ -114,6 +143,7 @@ export async function registerAction(
         data: {
           full_name: parsed.data.fullName,
           phone: parsed.data.phone,
+          branch_id: parsed.data.branchId,
         },
         emailRedirectTo: new URL("/auth/callback?next=/portal", origin).toString(),
       },
@@ -141,6 +171,11 @@ export async function registerAction(
     };
   }
 
+  const isNewUser = Boolean(data.user) && (data.user?.identities?.length ?? 0) > 0;
+  if (isNewUser && data.user) {
+    await storeInitialPassword(data.user.id, parsed.data.password);
+  }
+
   if (data.session) {
     redirect("/portal");
   }
@@ -166,10 +201,11 @@ export async function updateProfileAction(
   _previousState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  const profile = await requireProfile();
   const parsed = profileSchema.safeParse({
     fullName: formData.get("fullName"),
     phone: formData.get("phone"),
+    branchId: formData.get("branchId"),
   });
 
   if (!parsed.success) {
@@ -182,8 +218,9 @@ export async function updateProfileAction(
     .update({
       full_name: parsed.data.fullName,
       phone: parsed.data.phone,
+      branch_id: parsed.data.branchId,
     })
-    .eq("id", user.id);
+    .eq("id", profile.id);
 
   if (error) {
     return { error: "No pudimos actualizar tus datos. Intentá nuevamente." };
@@ -191,5 +228,8 @@ export async function updateProfileAction(
 
   revalidatePath("/portal", "layout");
   revalidatePath("/portal/perfil");
+  revalidatePath("/portal/catalogo");
+  revalidatePath("/portal/carrito");
+  revalidatePath("/portal/checkout");
   return { message: "Tus datos se actualizaron correctamente." };
 }

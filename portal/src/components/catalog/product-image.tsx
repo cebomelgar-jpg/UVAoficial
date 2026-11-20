@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { isAllowedImageUrl } from "@/lib/images";
 import { cn } from "@/lib/utils";
 
 export function ProductImage({
@@ -14,7 +15,10 @@ export function ProductImage({
   sizes?: string;
   priority?: boolean;
 }) {
-  const image = src || "/products/placeholder.svg";
+  const candidate = src || "/products/placeholder.svg";
+  const image = isAllowedImageUrl(candidate)
+    ? candidate
+    : "/products/placeholder.svg";
   return (
     <Image
       src={image}

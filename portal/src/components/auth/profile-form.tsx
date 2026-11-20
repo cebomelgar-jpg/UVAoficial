@@ -1,13 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, Save } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, MapPin, Save } from "lucide-react";
 import { updateProfileAction } from "@/lib/actions/auth";
-import type { ActionState, Profile } from "@/lib/types";
+import type { ActionState, Branch, Profile } from "@/lib/types";
 
 const initialState: ActionState = {};
 
-export function ProfileForm({ profile }: { profile: Profile }) {
+export function ProfileForm({
+  profile,
+  branches,
+}: {
+  profile: Profile;
+  branches: Branch[];
+}) {
   const [state, formAction, pending] = useActionState(
     updateProfileAction,
     initialState,
@@ -74,6 +80,32 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         <p className="mt-1.5 text-[11px] text-muted">
           Lo usamos para coordinar entregas y pagos. Podés actualizarlo cuando
           quieras.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="branchId" className="label">
+          Sede
+        </label>
+        <div className="relative">
+          <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <select
+            id="branchId"
+            name="branchId"
+            defaultValue={profile.branch_id ?? branches[0]?.id ?? ""}
+            className="select pl-9"
+            required
+          >
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name} · {branch.city}, {branch.province}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+          Define el catálogo que ves y la sede que prepara tus próximos pedidos.
+          Tu historial se conserva aunque cambies de sede.
         </p>
       </div>
 

@@ -7,6 +7,7 @@ import {
   BarChart3,
   Boxes,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   Leaf,
   LogOut,
@@ -16,6 +17,7 @@ import {
   ShoppingBag,
   Store,
   UserRound,
+  Users,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
@@ -74,12 +76,14 @@ export function AppShell({
       badge: totalItems,
     },
     { href: "/portal/pedidos", label: "Mis pedidos", icon: <Package className="size-4" /> },
+    { href: "/portal/documentacion", label: "Documentación", icon: <FileText className="size-4" /> },
     { href: "/portal/perfil", label: "Mi perfil", icon: <UserRound className="size-4" /> },
   ];
 
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Resumen", icon: <LayoutDashboard className="size-4" />, exact: true },
     { href: "/admin/pedidos", label: "Pedidos", icon: <ClipboardList className="size-4" /> },
+    { href: "/admin/perfiles", label: "Perfiles", icon: <Users className="size-4" /> },
     { href: "/admin/catalogo", label: "Catálogo", icon: <Boxes className="size-4" /> },
     { href: "/admin/analiticas", label: "Analíticas", icon: <BarChart3 className="size-4" /> },
   ];

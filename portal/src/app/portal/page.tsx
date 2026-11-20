@@ -14,10 +14,12 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { OrderStatusBadge } from "@/components/ui/order-status-badge";
+import { BranchBadge } from "@/components/ui/branch-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ProductImage } from "@/components/catalog/product-image";
-import { getPatientOverview } from "@/lib/data";
+import { getBranches, getPatientOverview } from "@/lib/data";
 import { requireProfile } from "@/lib/auth";
+import { findBranchById } from "@/lib/branches";
 import { formatARS, formatDate, formatOrderNumber, CATEGORY_LABELS } from "@/lib/format";
 import { whatsappUrl } from "@/lib/config";
 
@@ -32,7 +34,9 @@ export default async function PortalDashboardPage({
 }) {
   const profile = await requireProfile();
   const params = await searchParams;
-  const overview = await getPatientOverview(profile.id);
+  const branches = await getBranches();
+  const branch = findBranchById(branches, profile.branch_id);
+  const overview = await getPatientOverview(profile.id, profile.branch_id);
   const firstName = profile.full_name.split(/\s+/)[0] || "paciente";
 
   return (
@@ -43,6 +47,7 @@ export default async function PortalDashboardPage({
         description="Este es tu espacio privado. Revisá tus pedidos, consultá el catálogo y coordiná todo con el equipo."
         actions={
           <>
+            <BranchBadge branch={branch} />
             <Link href="/portal/catalogo" className="btn-primary">
               <Leaf className="size-4" />
               Ver catálogo
@@ -136,6 +141,7 @@ export default async function PortalDashboardPage({
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
+                    <BranchBadge branch={order.branch} />
                     <OrderStatusBadge status={order.status} />
                     <span className="hidden text-sm font-semibold text-ink sm:block">
                       {formatARS(order.total)}
@@ -186,7 +192,9 @@ export default async function PortalDashboardPage({
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="eyebrow">Disponible ahora</p>
-            <h2 className="mt-1 text-2xl text-ink">Selección para vos</h2>
+            <h2 className="mt-1 text-2xl text-ink">
+              {branch ? `Selección para ${branch.name}` : "Selección para vos"}
+            </h2>
           </div>
           <Link href="/portal/catalogo" className="link-underline text-xs">
             Ver catálogo completo

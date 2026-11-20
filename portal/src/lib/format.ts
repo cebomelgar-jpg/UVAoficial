@@ -4,6 +4,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
   ProductCategory,
+  ProfileStatus,
 } from "./types";
 
 const currencyFormatter = new Intl.NumberFormat("es-AR", {
@@ -42,8 +43,30 @@ export function formatDateTime(value: string | Date) {
   return dateTimeFormatter.format(new Date(value));
 }
 
+export const PROFILE_STATUS_LABELS: Record<ProfileStatus, string> = {
+  pending: "Pendiente",
+  approved: "Habilitado",
+  rejected: "Rechazado",
+  suspended: "Suspendido",
+};
+
+export const PROFILE_STATUS_STYLES: Record<ProfileStatus, string> = {
+  pending: "border-amber-300/70 bg-amber-50 text-amber-800",
+  approved: "border-emerald-300/70 bg-emerald-50 text-emerald-800",
+  rejected: "border-rose-300/70 bg-rose-50 text-rose-800",
+  suspended: "border-slate-300/70 bg-slate-50 text-slate-700",
+};
+
 export function formatOrderNumber(orderNumber: number) {
   return `#${String(orderNumber).padStart(5, "0")}`;
+}
+
+export function formatFileSize(bytes: number) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value <= 0) return "—";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export const CATEGORY_LABELS: Record<ProductCategory, string> = {

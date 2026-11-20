@@ -105,7 +105,10 @@ async function main() {
     {
       id: user.id,
       full_name: fullName,
+      email,
       role: "admin",
+      status: "approved",
+      approved_at: new Date().toISOString(),
     },
     { onConflict: "id" },
   );

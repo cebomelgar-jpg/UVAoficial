@@ -28,6 +28,12 @@ function revalidateCatalog() {
   revalidatePath("/portal/catalogo");
 }
 
+function withSede(path: string, formData: FormData) {
+  const sede = formString(formData, "sede").trim();
+  if (!sede) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}sede=${encodeURIComponent(sede)}`;
+}
+
 export async function saveProductAction(
   _previousState: ActionState,
   formData: FormData,
@@ -43,6 +49,7 @@ export async function saveProductAction(
   const slug = formString(formData, "slug").trim() || slugify(name);
 
   const parsed = productSchema.safeParse({
+    branchId: formString(formData, "branchId"),
     name,
     slug,
     category: formString(formData, "category"),
@@ -86,6 +93,7 @@ export async function saveProductAction(
   }
 
   const payload = {
+    branch_id: data.branchId,
     name: data.name,
     slug: data.slug,
     category: data.category,
@@ -113,13 +121,13 @@ export async function saveProductAction(
 
   if (error) {
     if (error.code === "23505") {
-      return { error: "Ya existe un producto con ese slug." };
+      return { error: "Ya existe un producto con ese slug en esta sede." };
     }
     return { error: "No pudimos guardar el producto. Intentá nuevamente." };
   }
 
   revalidateCatalog();
-  redirect("/admin/catalogo?guardado=1");
+  redirect(withSede("/admin/catalogo?guardado=1", formData));
 }
 
 export async function updateStockAction(
@@ -169,7 +177,10 @@ export async function toggleProductActiveAction(formData: FormData) {
 
     if (!product || Number(product.price) <= 0) {
       redirect(
-        "/admin/catalogo?error=Asign%C3%A1+un+precio+mayor+a+cero+antes+de+publicar.",
+        withSede(
+          "/admin/catalogo?error=Asign%C3%A1+un+precio+mayor+a+cero+antes+de+publicar.",
+          formData,
+        ),
       );
     }
   }
@@ -180,7 +191,12 @@ export async function toggleProductActiveAction(formData: FormData) {
     .eq("id", productId);
 
   if (error) {
-    redirect("/admin/catalogo?error=No pudimos cambiar la visibilidad.");
+    redirect(
+      withSede(
+        "/admin/catalogo?error=No+pudimos+cambiar+la+visibilidad.",
+        formData,
+      ),
+    );
   }
 
   revalidateCatalog();
@@ -191,7 +207,7 @@ export async function deleteProductAction(formData: FormData) {
   const productId = formString(formData, "productId");
 
   if (!z.string().uuid().safeParse(productId).success) {
-    redirect("/admin/catalogo?error=Producto inválido.");
+    redirect(withSede("/admin/catalogo?error=Producto+inv%C3%A1lido.", formData));
   }
 
   const supabase = await createClient();
@@ -201,9 +217,14 @@ export async function deleteProductAction(formData: FormData) {
     .eq("id", productId);
 
   if (error) {
-    redirect("/admin/catalogo?error=No pudimos eliminar el producto.");
+    redirect(
+      withSede(
+        "/admin/catalogo?error=No+pudimos+eliminar+el+producto.",
+        formData,
+      ),
+    );
   }
 
   revalidateCatalog();
-  redirect("/admin/catalogo?eliminado=1");
+  redirect(withSede("/admin/catalogo?eliminado=1", formData));
 }

@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
+import { BranchBadge } from "@/components/ui/branch-badge";
 import { ProductImage } from "@/components/catalog/product-image";
 import { useToast } from "@/components/providers/toast-provider";
 import { createClient } from "@/lib/supabase/client";
@@ -36,7 +37,8 @@ import {
   updateStockAction,
 } from "@/lib/actions/catalog";
 import { CATEGORY_LABELS, formatARS } from "@/lib/format";
-import type { ActionState, Product, ProductCategory } from "@/lib/types";
+import { isAllowedImageUrl } from "@/lib/images";
+import type { ActionState, Branch, Product, ProductCategory } from "@/lib/types";
 import { cn, normalizeSearch, slugify } from "@/lib/utils";
 
 type CategoryFilter = "todos" | ProductCategory;
@@ -51,10 +53,14 @@ const CATEGORY_FILTERS: Array<{ value: CategoryFilter; label: string }> = [
 
 export function AdminCatalogManager({
   products,
+  branches,
   initialEditId,
+  selectedBranchSlug,
 }: {
   products: Product[];
+  branches: Branch[];
   initialEditId?: string;
+  selectedBranchSlug?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -69,6 +75,13 @@ export function AdminCatalogManager({
   });
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const selectedBranch = branches.find(
+    (branch) => branch.slug === selectedBranchSlug,
+  );
+  const defaultBranchId = selectedBranch?.id ?? branches[0]?.id ?? "";
+  const catalogPath = selectedBranch
+    ? `/admin/catalogo?sede=${selectedBranch.slug}`
+    : "/admin/catalogo";
 
   useEffect(() => {
     if (initialEditId) {
@@ -80,9 +93,14 @@ export function AdminCatalogManager({
   function closeEditor() {
     setEditing(null);
     if (initialEditId) {
-      router.replace("/admin/catalogo", { scroll: false });
+      router.replace(catalogPath, { scroll: false });
     }
   }
+
+  const branchById = useMemo(
+    () => new Map(branches.map((branch) => [branch.id, branch])),
+    [branches],
+  );
 
   const counts = useMemo(
     () => ({
@@ -104,13 +122,14 @@ export function AdminCatalogManager({
         [
           product.name,
           product.slug,
+          branchById.get(product.branch_id)?.name ?? "",
           product.description ?? "",
           product.aromas.join(" "),
           product.flavors.join(" "),
         ].join(" "),
       ).includes(term);
     });
-  }, [products, category, status, search]);
+  }, [products, category, status, search, branchById]);
 
   async function toggleActive(product: Product) {
     if (!product.active && product.price <= 0) {
@@ -126,6 +145,7 @@ export function AdminCatalogManager({
     const formData = new FormData();
     formData.set("productId", product.id);
     formData.set("active", String(!product.active));
+    if (selectedBranch) formData.set("sede", selectedBranch.slug);
     await toggleProductActiveAction(formData);
     setTogglingId(null);
     toast({
@@ -224,6 +244,7 @@ export function AdminCatalogManager({
           <thead>
             <tr>
               <th>Producto</th>
+              <th>Sede</th>
               <th>Categoría</th>
               <th>Cannabinoides</th>
               <th>Precio</th>
@@ -258,6 +279,9 @@ export function AdminCatalogManager({
                       </p>
                     </div>
                   </div>
+                </td>
+                <td>
+                  <BranchBadge branch={branchById.get(product.branch_id)} />
                 </td>
                 <td>
                   <span className="chip">{CATEGORY_LABELS[product.category]}</span>
@@ -372,6 +396,9 @@ export function AdminCatalogManager({
           <ProductForm
             key={editing === "new" ? "new" : editing.id}
             product={editing === "new" ? null : editing}
+            branches={branches}
+            defaultBranchId={defaultBranchId}
+            selectedBranchSlug={selectedBranch?.slug}
             onCancel={closeEditor}
           />
         ) : null}
@@ -390,6 +417,9 @@ export function AdminCatalogManager({
             name="productId"
             value={deleteTarget?.id ?? ""}
           />
+          {selectedBranch ? (
+            <input type="hidden" name="sede" value={selectedBranch.slug} />
+          ) : null}
           <div className="flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs leading-relaxed text-rose-900">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             <p>
@@ -478,9 +508,15 @@ function StockEditor({ product }: { product: Product }) {
 
 function ProductForm({
   product,
+  branches,
+  defaultBranchId,
+  selectedBranchSlug,
   onCancel,
 }: {
   product: Product | null;
+  branches: Branch[];
+  defaultBranchId: string;
+  selectedBranchSlug?: string;
   onCancel: () => void;
 }) {
   const { toast } = useToast();
@@ -494,6 +530,7 @@ function ProductForm({
   const [imageUrl, setImageUrl] = useState(product?.image_url ?? "");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const imageUrlValid = isAllowedImageUrl(imageUrl);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -553,6 +590,9 @@ function ProductForm({
   return (
     <form action={formAction} className="space-y-5">
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
+      {selectedBranchSlug ? (
+        <input type="hidden" name="sede" value={selectedBranchSlug} />
+      ) : null}
       <input type="hidden" name="image_url" value={imageUrl} />
 
       {state.error ? (
@@ -566,6 +606,29 @@ function ProductForm({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label htmlFor="branchId" className="label">
+            Sede
+          </label>
+          <select
+            id="branchId"
+            name="branchId"
+            className="select"
+            defaultValue={product?.branch_id ?? defaultBranchId}
+            required
+          >
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name} · {branch.city}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10px] text-muted">
+            El catálogo es independiente por sede. El mismo slug puede repetirse
+            en otra sede.
+          </p>
+        </div>
+
         <div>
           <label htmlFor="name" className="label">
             Nombre
@@ -603,7 +666,8 @@ function ProductForm({
             placeholder="runtz"
           />
           <p className="mt-1 text-[10px] text-muted">
-            Identificador único en minúsculas. Se genera desde el nombre.
+            Identificador único dentro de la sede, en minúsculas. Se genera desde
+            el nombre.
           </p>
         </div>
 
@@ -830,7 +894,7 @@ function ProductForm({
       <div className="rounded-2xl border border-ink/10 bg-white/55 p-4">
         <div className="flex flex-col gap-4 sm:flex-row">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-ink/5 sm:w-48">
-            {imageUrl ? (
+            {imageUrl && imageUrlValid ? (
               <ProductImage
                 src={imageUrl}
                 alt="Vista previa"
@@ -881,13 +945,21 @@ function ProductForm({
               ) : null}
             </div>
             <input
-              type="url"
+              type="text"
+              inputMode="url"
               value={imageUrl}
               onChange={(event) => setImageUrl(event.target.value)}
               className="input mt-3 h-9 py-2 text-[11px]"
               placeholder="O pegá una URL de imagen"
               aria-label="URL de imagen"
+              aria-invalid={!imageUrlValid}
             />
+            {!imageUrlValid ? (
+              <p className="mt-2 text-[11px] text-rose-700">
+                Usá una ruta local (/products/...) o una URL pública de Supabase
+                Storage. Otras URLs externas no se pueden mostrar.
+              </p>
+            ) : null}
             {uploadError ? (
               <p className="mt-2 text-[11px] text-rose-700">{uploadError}</p>
             ) : null}
@@ -912,7 +984,7 @@ function ProductForm({
           <button
             type="submit"
             className="btn-primary"
-            disabled={pending || uploading}
+            disabled={pending || uploading || !imageUrlValid}
           >
             {pending ? (
               <>

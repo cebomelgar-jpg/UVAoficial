@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin, requireUser } from "@/lib/auth";
+import { requireAdmin, requireProfile } from "@/lib/auth";
 import {
   checkoutSchema,
   firstZodError,
@@ -26,13 +26,16 @@ function rpcError(message?: string) {
     "pedido cancelado",
     "permisos de administrador",
     "perfil de paciente",
+    "sede",
+    "Solo los pacientes",
+    "habilitada",
   ];
   if (known.some((fragment) => message.includes(fragment))) return message;
   return "No pudimos completar la operación. Intentá nuevamente.";
 }
 
 export async function createOrderAction(input: unknown) {
-  const user = await requireUser();
+  const profile = await requireProfile();
   const parsed = checkoutSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -63,7 +66,7 @@ export async function createOrderAction(input: unknown) {
   revalidatePath("/admin/pedidos");
   revalidatePath("/admin/analiticas");
 
-  return { ok: true as const, orderId: data as string, userId: user.id };
+  return { ok: true as const, orderId: data as string, userId: profile.id };
 }
 
 export async function cancelOrderAction(orderId: string): Promise<ActionResult> {
@@ -72,7 +75,7 @@ export async function cancelOrderAction(orderId: string): Promise<ActionResult> 
     return { ok: false, error: "Pedido inválido." };
   }
 
-  await requireUser();
+  await requireProfile();
   const supabase = await createClient();
   const { error } = await supabase.rpc("cancel_order", {
     p_order_id: parsed.data,

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
+import { BranchFilter } from "@/components/admin/branch-filter";
 import {
   AnalyticsBreakdowns,
   AnalyticsEmptyHint,
@@ -19,7 +20,8 @@ import {
   TrendChart,
 } from "@/components/admin/analytics-charts";
 import { requireAdmin } from "@/lib/auth";
-import { getAdminAnalytics } from "@/lib/data";
+import { findBranch } from "@/lib/branches";
+import { getAdminAnalytics, getBranches } from "@/lib/data";
 import { formatARS, formatDate } from "@/lib/format";
 import type { AnalyticsRange } from "@/lib/types";
 
@@ -32,25 +34,40 @@ const RANGES: AnalyticsRange[] = ["semana", "mes", "anio"];
 export default async function AdminAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rango?: string }>;
+  searchParams: Promise<{ rango?: string; sede?: string }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
   const range = RANGES.includes(params.rango as AnalyticsRange)
     ? (params.rango as AnalyticsRange)
     : "mes";
-  const data = await getAdminAnalytics(range);
+  const branches = await getBranches(true);
+  const selectedBranch = findBranch(branches, params.sede);
+  const data = await getAdminAnalytics(range, selectedBranch?.id);
+  const sedeQuery = selectedBranch ? `?sede=${selectedBranch.slug}` : "";
 
   return (
     <div className="space-y-7">
       <PageHeader
         eyebrow="Analíticas"
         title="Cómo se mueve el portal."
-        description={`${data.rangeLabel}: ${formatDate(data.start)} — ${formatDate(data.end)}. Ingresos y pedidos sin cancelados.`}
+        description={`${data.rangeLabel}: ${formatDate(data.start)} — ${formatDate(data.end)}. ${
+          selectedBranch ? `Sede ${selectedBranch.name}. ` : "Todas las sedes. "
+        }Ingresos y pedidos sin cancelados.`}
         actions={
           <>
-            <AnalyticsRangeTabs active={range} basePath="/admin/analiticas" />
-            <Link href="/admin/pedidos" className="btn-outline">
+            <BranchFilter
+              branches={branches}
+              activeSlug={selectedBranch?.slug}
+              basePath="/admin/analiticas"
+              extraParams={{ rango: range }}
+            />
+            <AnalyticsRangeTabs
+              active={range}
+              basePath="/admin/analiticas"
+              extraParams={{ sede: selectedBranch?.slug }}
+            />
+            <Link href={`/admin/pedidos${sedeQuery}`} className="btn-outline">
               <ClipboardList className="size-4" />
               Ver pedidos
             </Link>
@@ -119,7 +136,7 @@ export default async function AdminAnalyticsPage({
           </div>
         </AnalyticsEmptyHint>
         <Link
-          href="/admin/pedidos"
+          href={`/admin/pedidos${sedeQuery}`}
           className="btn-mint btn-sm md:justify-self-end"
         >
           Ir a la planilla

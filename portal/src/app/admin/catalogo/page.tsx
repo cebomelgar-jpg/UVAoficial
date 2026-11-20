@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, Leaf } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { BranchFilter } from "@/components/admin/branch-filter";
 import { AdminCatalogManager } from "@/components/admin/admin-catalog-manager";
 import { requireAdmin } from "@/lib/auth";
-import { getAllProducts } from "@/lib/data";
+import { findBranch } from "@/lib/branches";
+import { getAllProducts, getBranches } from "@/lib/data";
 
 export const metadata: Metadata = {
   title: "Catálogo",
@@ -18,23 +20,42 @@ export default async function AdminCatalogPage({
     eliminado?: string;
     error?: string;
     editar?: string;
+    sede?: string;
   }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const products = await getAllProducts();
+  const branches = await getBranches(true);
+  const selectedBranch = findBranch(branches, params.sede);
+  const products = await getAllProducts(selectedBranch?.id);
+  const sedeQuery = selectedBranch ? `?sede=${selectedBranch.slug}` : "";
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Catálogo"
         title="Productos y stock"
-        description="Creá fichas, actualizá precios y stock, subí imágenes y decidí qué productos ve el paciente."
+        description={
+          selectedBranch
+            ? `Catálogo independiente de ${selectedBranch.name}. Cada sede tiene sus propios productos, precios y stock.`
+            : "Catálogo de todas las sedes. Filtrá por sede para editar el catálogo que ve cada paciente."
+        }
         actions={
-          <Link href="/portal/catalogo" className="btn-outline">
-            <Leaf className="size-4" />
-            Ver catálogo público
-          </Link>
+          <>
+            <BranchFilter
+              branches={branches}
+              activeSlug={selectedBranch?.slug}
+              basePath="/admin/catalogo"
+            />
+            <Link
+              href={`/portal/catalogo${sedeQuery}`}
+              className="btn-outline"
+              target="_blank"
+            >
+              <Leaf className="size-4" />
+              Ver catálogo
+            </Link>
+          </>
         }
       />
 
@@ -59,7 +80,12 @@ export default async function AdminCatalogPage({
         </div>
       ) : null}
 
-      <AdminCatalogManager products={products} initialEditId={params.editar} />
+      <AdminCatalogManager
+        products={products}
+        branches={branches}
+        initialEditId={params.editar}
+        selectedBranchSlug={selectedBranch?.slug}
+      />
     </div>
   );
 }

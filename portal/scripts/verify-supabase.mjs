@@ -64,7 +64,15 @@ try {
   fail("NEXT_PUBLIC_SUPABASE_URL no es una URL válida");
 }
 
-const tables = ["profiles", "products", "orders", "order_items"];
+const tables = [
+  "branches",
+  "profiles",
+  "profile_credentials",
+  "products",
+  "orders",
+  "order_items",
+  "patient_documents",
+];
 for (const table of tables) {
   const { count, error } = await admin
     .from(table)
@@ -75,6 +83,45 @@ for (const table of tables) {
     fail(`Tabla ${table}`, `${error.code ?? ""} ${cleanupMessage(error.message)}`);
   } else {
     ok(`Tabla ${table}`, `${count ?? 0} filas`);
+  }
+}
+
+for (const table of ["profiles", "products", "orders"]) {
+  const { error } = await admin.from(table).select("branch_id").limit(1);
+  if (error) {
+    fail(
+      `Columna ${table}.branch_id`,
+      `${error.code ?? ""} ${cleanupMessage(error.message)}`,
+    );
+  } else {
+    ok(`Columna ${table}.branch_id`, "presente");
+  }
+}
+
+for (const column of ["email", "status", "approved_at"]) {
+  const { error } = await admin.from("profiles").select(column).limit(1);
+  if (error) {
+    fail(`Columna profiles.${column}`, `${error.code ?? ""} ${cleanupMessage(error.message)}`);
+  } else {
+    ok(`Columna profiles.${column}`, "presente");
+  }
+}
+
+const branches = await admin
+  .from("branches")
+  .select("slug, name, active")
+  .order("sort_order", { ascending: true });
+
+if (branches.error) {
+  fail("Sedes iniciales", cleanupMessage(branches.error.message));
+} else {
+  const slugs = new Set((branches.data ?? []).map((branch) => branch.slug));
+  const expected = ["parana", "villaguay"];
+  const missing = expected.filter((slug) => !slugs.has(slug));
+  if (missing.length > 0) {
+    fail("Sedes iniciales", `faltan: ${missing.join(", ")}`);
+  } else {
+    ok("Sedes iniciales", "parana, villaguay");
   }
 }
 
@@ -132,6 +179,16 @@ if (bucket.error) {
   ok("Bucket product-images", `público=${bucket.data.public}`);
 }
 
+const documentsBucket = await admin.storage.getBucket("patient-documents");
+if (documentsBucket.error) {
+  fail("Bucket patient-documents", cleanupMessage(documentsBucket.error.message));
+} else {
+  ok("Bucket patient-documents", `público=${documentsBucket.data.public}`);
+  if (documentsBucket.data.public) {
+    fail("Bucket patient-documents", "debe ser privado");
+  }
+}
+
 const users = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
 if (users.error) {
   fail("Auth Admin", cleanupMessage(users.error.message));
@@ -148,7 +205,7 @@ if (users.error) {
     } else {
       const profile = await admin
         .from("profiles")
-        .select("role")
+        .select("role, status")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -158,6 +215,8 @@ if (users.error) {
         fail("Perfil del administrador", "el usuario existe pero no tiene perfil");
       } else if (profile.data.role !== "admin") {
         fail("Perfil del administrador", `rol actual: ${profile.data.role}`);
+      } else if (profile.data.status && profile.data.status !== "approved") {
+        fail("Perfil del administrador", `estado actual: ${profile.data.status}`);
       } else {
         ok("Administrador inicial", "perfil con rol admin");
       }

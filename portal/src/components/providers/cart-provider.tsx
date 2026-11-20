@@ -22,6 +22,7 @@ type CartContextValue = {
   addItem: (product: Product, quantity?: number) => boolean;
   removeItem: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
+  setBranch: (branchId: string | null) => void;
   clear: () => void;
 };
 
@@ -32,6 +33,7 @@ function sanitizeItem(value: unknown): CartItem | null {
   const item = value as Partial<CartItem>;
   if (
     typeof item.productId !== "string" ||
+    typeof item.branchId !== "string" ||
     typeof item.slug !== "string" ||
     typeof item.name !== "string" ||
     typeof item.price !== "number" ||
@@ -44,6 +46,7 @@ function sanitizeItem(value: unknown): CartItem | null {
 
   return {
     productId: item.productId,
+    branchId: item.branchId,
     slug: item.slug,
     name: item.name,
     price: item.price,
@@ -57,6 +60,7 @@ function sanitizeItem(value: unknown): CartItem | null {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [ready, setReady] = useState(false);
+  const [branchId, setBranchId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -88,6 +92,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [items, ready]);
 
+  // El carrito pertenece a una sola sede. Si el paciente cambia de sede,
+  // descartamos lo que había cargado para el catálogo anterior.
+  useEffect(() => {
+    if (!ready || !branchId) return;
+    const hasOtherBranch = items.some((item) => item.branchId !== branchId);
+    if (!hasOtherBranch) return;
+
+    setItems((current) =>
+      current.filter((item) => item.branchId === branchId),
+    );
+    toast({
+      title: "Carrito actualizado",
+      description:
+        "Quitamos los productos que pertenecían al catálogo de otra sede.",
+      variant: "info",
+    });
+  }, [branchId, items, ready, toast]);
+
+  const setBranch = useCallback((nextBranchId: string | null) => {
+    setBranchId(nextBranchId);
+  }, []);
+
   const addItem = useCallback(
     (product: Product, quantity = 1) => {
       if (!product.active || product.stock <= 0) {
@@ -108,6 +134,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      if (branchId && product.branch_id !== branchId) {
+        toast({
+          title: "Producto de otra sede",
+          description:
+            "Tu carrito está asociado a tu sede actual. Cambiá de sede desde tu perfil para comprar este producto.",
+          variant: "info",
+        });
+        return false;
+      }
+
+      if (items.some((item) => item.branchId !== product.branch_id)) {
+        toast({
+          title: "Tu carrito es de otra sede",
+          description:
+            "Vacía el carrito o cambiá de sede desde tu perfil antes de agregar este producto.",
+          variant: "info",
+        });
+        return false;
+      }
+
       setItems((current) => {
         const existing = current.find((item) => item.productId === product.id);
         if (existing) {
@@ -115,6 +161,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             item.productId === product.id
               ? {
                   ...item,
+                  branchId: product.branch_id,
                   price: product.price,
                   stock: product.stock,
                   quantity: Math.min(
@@ -131,6 +178,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           ...current,
           {
             productId: product.id,
+            branchId: product.branch_id,
             slug: product.slug,
             name: product.name,
             price: product.price,
@@ -148,7 +196,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
       return true;
     },
-    [toast],
+    [branchId, items, toast],
   );
 
   const removeItem = useCallback((productId: string) => {
@@ -192,9 +240,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItem,
       removeItem,
       setQuantity,
+      setBranch,
       clear,
     }),
-    [items, ready, totalItems, subtotal, addItem, removeItem, setQuantity, clear],
+    [
+      items,
+      ready,
+      totalItems,
+      subtotal,
+      addItem,
+      removeItem,
+      setQuantity,
+      setBranch,
+      clear,
+    ],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

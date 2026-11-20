@@ -37,6 +37,8 @@ export async function requireUser() {
 export async function requireProfile() {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login?error=profile");
+  const status = profile.status ?? "approved";
+  if (status !== "approved") redirect("/pendiente");
   return profile;
 }
 

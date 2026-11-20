@@ -5,6 +5,7 @@ import {
   BarChart3,
   Boxes,
   ClipboardList,
+  Clock3,
   Leaf,
   PackageOpen,
   Users,
@@ -13,9 +14,12 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { OrderStatusBadge } from "@/components/ui/order-status-badge";
+import { BranchBadge } from "@/components/ui/branch-badge";
+import { BranchFilter } from "@/components/admin/branch-filter";
 import { AdminRealtimeRefresh } from "@/components/admin/admin-realtime-refresh";
-import { getAdminOverview } from "@/lib/data";
+import { getAdminOverview, getBranches } from "@/lib/data";
 import { requireAdmin } from "@/lib/auth";
+import { findBranch } from "@/lib/branches";
 import {
   CATEGORY_LABELS,
   formatARS,
@@ -27,21 +31,39 @@ export const metadata: Metadata = {
   title: "Administración",
 };
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sede?: string }>;
+}) {
   const profile = await requireAdmin();
-  const overview = await getAdminOverview();
+  const params = await searchParams;
+  const branches = await getBranches(true);
+  const selectedBranch = findBranch(branches, params.sede);
+  const overview = await getAdminOverview(selectedBranch?.id);
+  const branchById = new Map(branches.map((branch) => [branch.id, branch]));
   const firstName = profile.full_name.split(/\s+/)[0] || "equipo";
+  const sedeQuery = selectedBranch ? `?sede=${selectedBranch.slug}` : "";
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Administración"
         title={`Hola, ${firstName}.`}
-        description="Resumen operativo del portal: pedidos, stock y actividad de los últimos 30 días."
+        description={
+          selectedBranch
+            ? `Resumen operativo de ${selectedBranch.name}: pedidos, stock y actividad de los últimos 30 días.`
+            : "Resumen operativo del portal: pedidos, stock y actividad de todas las sedes en los últimos 30 días."
+        }
         actions={
           <>
+            <BranchFilter
+              branches={branches}
+              activeSlug={selectedBranch?.slug}
+              basePath="/admin"
+            />
             <AdminRealtimeRefresh />
-            <Link href="/admin/pedidos" className="btn-primary">
+            <Link href={`/admin/pedidos${sedeQuery}`} className="btn-primary">
               <ClipboardList className="size-4" />
               Gestionar pedidos
             </Link>
@@ -49,7 +71,7 @@ export default async function AdminDashboardPage() {
         }
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <MetricCard
           label="Ingresos 30 días"
           value={formatARS(overview.monthRevenue)}
@@ -78,6 +100,17 @@ export default async function AdminDashboardPage() {
           tone="mint"
         />
         <MetricCard
+          label="Pendientes de acceso"
+          value={overview.profilesReady ? String(overview.pendingProfiles) : "—"}
+          hint={
+            overview.profilesReady
+              ? "Cuentas por habilitar"
+              : "Aplicá la migración de perfiles"
+          }
+          icon={<Clock3 className="size-4" />}
+          tone={overview.pendingProfiles > 0 ? "amber" : "default"}
+        />
+        <MetricCard
           label="Productos activos"
           value={String(overview.activeProducts)}
           hint="Visibles en el catálogo"
@@ -92,7 +125,7 @@ export default async function AdminDashboardPage() {
               <p className="eyebrow">Actividad reciente</p>
               <h2 className="mt-1 text-2xl text-ink">Últimos pedidos</h2>
             </div>
-            <Link href="/admin/pedidos" className="link-underline text-xs">
+            <Link href={`/admin/pedidos${sedeQuery}`} className="link-underline text-xs">
               Ver todos
             </Link>
           </div>
@@ -107,7 +140,9 @@ export default async function AdminDashboardPage() {
               {overview.recentOrders.map((order) => (
                 <Link
                   key={order.id}
-                  href={`/admin/pedidos?pedido=${order.id}`}
+                  href={`/admin/pedidos?pedido=${order.id}${
+                    selectedBranch ? `&sede=${selectedBranch.slug}` : ""
+                  }`}
                   className="flex items-center justify-between gap-3 py-3.5 transition hover:bg-mint/5"
                 >
                   <div className="min-w-0">
@@ -116,6 +151,7 @@ export default async function AdminDashboardPage() {
                         {formatOrderNumber(order.order_number)}
                       </p>
                       <OrderStatusBadge status={order.status} />
+                      <BranchBadge branch={order.branch} />
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {order.patient_name} · {formatDate(order.created_at)}
@@ -136,10 +172,68 @@ export default async function AdminDashboardPage() {
         <section className="card p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <div>
+              <p className="eyebrow">Registros</p>
+              <h2 className="mt-1 text-2xl text-ink">Registros recientes</h2>
+            </div>
+            <Link href="/admin/perfiles" className="link-underline text-xs">
+              Ver todos
+            </Link>
+          </div>
+
+          {!overview.profilesReady ? (
+            <p className="mt-5 rounded-2xl border border-dashed border-amber-200 bg-amber-50/70 p-5 text-center text-xs text-amber-800">
+              Aplicá la migración de perfiles para ver quiénes se van registrando.
+            </p>
+          ) : overview.recentProfiles.length === 0 ? (
+            <p className="mt-5 rounded-2xl border border-dashed border-ink/15 p-6 text-center text-xs text-muted">
+              Todavía no hay registros de pacientes.
+            </p>
+          ) : (
+            <div className="mt-5 divide-y divide-ink/10">
+              {overview.recentProfiles.map((profile) => (
+                <Link
+                  key={profile.id}
+                  href="/admin/perfiles"
+                  className="flex items-center justify-between gap-3 py-3 transition hover:bg-mint/5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {profile.full_name}
+                    </p>
+                    <p className="truncate text-xs text-muted">
+                      {profile.email ?? "Sin email"} · {formatDate(profile.created_at)}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      profile.status === "pending"
+                        ? "badge border-amber-300/70 bg-amber-50 text-amber-800"
+                        : profile.status === "approved"
+                          ? "badge border-emerald-300/70 bg-emerald-50 text-emerald-800"
+                          : "badge border-slate-300/70 bg-slate-50 text-slate-700"
+                    }
+                  >
+                    {profile.status === "pending"
+                      ? "Pendiente"
+                      : profile.status === "approved"
+                        ? "Habilitado"
+                        : profile.status === "rejected"
+                          ? "Rechazado"
+                          : "Suspendido"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="card p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
               <p className="eyebrow">Atención</p>
               <h2 className="mt-1 text-2xl text-ink">Stock bajo</h2>
             </div>
-            <Link href="/admin/catalogo" className="link-underline text-xs">
+            <Link href={`/admin/catalogo${sedeQuery}`} className="link-underline text-xs">
               Catálogo
             </Link>
           </div>
@@ -153,16 +247,23 @@ export default async function AdminDashboardPage() {
               {overview.lowStock.map((product) => (
                 <Link
                   key={product.id}
-                  href={`/admin/catalogo?editar=${product.id}`}
+                  href={`/admin/catalogo?editar=${product.id}${
+                    selectedBranch ? `&sede=${selectedBranch.slug}` : ""
+                  }`}
                   className="flex items-center justify-between gap-3 rounded-2xl border border-ink/10 bg-white/50 p-3 transition hover:border-green/20 hover:bg-white"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-ink">
                       {product.name}
                     </p>
-                    <p className="text-[10px] uppercase tracking-[0.12em] text-muted">
-                      {CATEGORY_LABELS[product.category]}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="text-[10px] uppercase tracking-[0.12em] text-muted">
+                        {CATEGORY_LABELS[product.category]}
+                      </p>
+                      <BranchBadge
+                        branch={branchById.get(product.branch_id) ?? null}
+                      />
+                    </div>
                   </div>
                   <span
                     className={
@@ -185,21 +286,27 @@ export default async function AdminDashboardPage() {
         </section>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <QuickAction
-          href="/admin/pedidos"
+          href={`/admin/pedidos${sedeQuery}`}
           icon={<ClipboardList className="size-5" />}
           title="Pedidos"
           description="Planilla tipo Excel con edición de estado, pago y notas."
         />
         <QuickAction
-          href="/admin/catalogo"
+          href={`/admin/catalogo${sedeQuery}`}
           icon={<Boxes className="size-5" />}
           title="Catálogo"
           description="Crear y editar productos, precios, stock e imágenes."
         />
         <QuickAction
-          href="/admin/analiticas"
+          href="/admin/perfiles"
+          icon={<Users className="size-5" />}
+          title="Perfiles"
+          description="Habilitar cuentas, revisar datos y administrar contraseñas."
+        />
+        <QuickAction
+          href={`/admin/analiticas${sedeQuery}`}
           icon={<BarChart3 className="size-5" />}
           title="Analíticas"
           description="Semana, mes o año: ingresos, categorías y productos."

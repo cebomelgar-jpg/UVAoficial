@@ -1,18 +1,45 @@
+import type { PatientDocumentType } from "./documents";
+
 export type ProfileRole = "patient" | "admin";
+
+export type ProfileStatus = "pending" | "approved" | "rejected" | "suspended";
+
+export type Branch = {
+  id: string;
+  slug: string;
+  name: string;
+  city: string;
+  province: string;
+  address: string | null;
+  phone: string | null;
+  active: boolean;
+  sort_order: number;
+};
 
 export type Profile = {
   id: string;
   full_name: string;
+  email: string | null;
   phone: string | null;
   role: ProfileRole;
+  status: ProfileStatus;
+  branch_id: string | null;
+  branch?: Branch | null;
+  approved_at: string | null;
+  approved_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AdminProfile = Profile & {
+  has_password: boolean;
 };
 
 export type ProductCategory = "flores" | "rosin_hash" | "vapes";
 
 export type Product = {
   id: string;
+  branch_id: string;
   slug: string;
   name: string;
   category: ProductCategory;
@@ -63,6 +90,8 @@ export type Order = {
   id: string;
   order_number: number;
   user_id: string | null;
+  branch_id: string | null;
+  branch?: Branch | null;
   patient_name: string;
   patient_email: string | null;
   status: OrderStatus;
@@ -86,7 +115,7 @@ export type OrderWithItems = Order & {
 
 export type AdminOrder = Order & {
   items: OrderItem[];
-  profile: Pick<Profile, "full_name" | "phone"> | null;
+  profile: Pick<Profile, "full_name" | "phone" | "branch_id"> | null;
 };
 
 export type AnalyticsRange = "semana" | "mes" | "anio";
@@ -129,6 +158,7 @@ export type AnalyticsData = {
 
 export type CartItem = {
   productId: string;
+  branchId: string;
   slug: string;
   name: string;
   price: number;
@@ -136,6 +166,22 @@ export type CartItem = {
   category: ProductCategory;
   stock: number;
   quantity: number;
+};
+
+export type PatientDocument = {
+  id: string;
+  user_id: string;
+  document_type: PatientDocumentType;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  uploaded_at: string;
+  updated_at: string;
+};
+
+export type PatientDocumentWithUrl = PatientDocument & {
+  signed_url: string | null;
 };
 
 export type ActionState = {

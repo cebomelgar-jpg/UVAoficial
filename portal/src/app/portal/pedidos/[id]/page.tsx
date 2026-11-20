@@ -13,6 +13,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/order-status-badge";
+import { BranchBadge } from "@/components/ui/branch-badge";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 import { PaymentInstructions } from "@/components/orders/payment-instructions";
 import { CancelOrderButton } from "@/components/orders/cancel-order-button";
@@ -99,6 +100,7 @@ export default async function OrderDetailPage({
             </h1>
             <OrderStatusBadge status={order.status} />
             <PaymentStatusBadge status={order.payment_status} />
+            <BranchBadge branch={order.branch} />
           </div>
           <p className="mt-2 text-sm text-muted">
             Creado el {formatDateTime(order.created_at)}
@@ -243,6 +245,13 @@ export default async function OrderDetailPage({
               {FULFILLMENT_LABELS[order.fulfillment_method]}
             </h2>
             <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted">
+              <div className="flex gap-2.5">
+                <MapPin className="mt-0.5 size-3.5 shrink-0 text-green-text" />
+                <div>
+                  <p className="font-semibold text-ink">Sede del catálogo</p>
+                  <p>{order.branch?.name ?? "Sin sede"}</p>
+                </div>
+              </div>
               <div className="flex gap-2.5">
                 <Phone className="mt-0.5 size-3.5 shrink-0 text-green-text" />
                 <div>

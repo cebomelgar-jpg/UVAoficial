@@ -6,6 +6,7 @@ import {
   FileText,
   KeyRound,
   Mail,
+  MapPin,
   MessageCircle,
   ShieldCheck,
   UserRound,
@@ -13,6 +14,8 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { ProfileForm } from "@/components/auth/profile-form";
 import { requireProfile, getCurrentUser } from "@/lib/auth";
+import { getBranches } from "@/lib/data";
+import { findBranchById } from "@/lib/branches";
 import { formatDate } from "@/lib/format";
 import { whatsappUrl } from "@/lib/config";
 import { initials } from "@/lib/utils";
@@ -24,13 +27,15 @@ export const metadata: Metadata = {
 export default async function ProfilePage() {
   const profile = await requireProfile();
   const user = await getCurrentUser();
+  const branches = await getBranches();
+  const branch = findBranchById(branches, profile.branch_id);
 
   return (
     <div className="space-y-7">
       <PageHeader
         eyebrow="Cuenta privada"
         title="Mi perfil"
-        description="Mantené actualizados tus datos de contacto. El email de acceso no se puede modificar desde el portal."
+        description="Mantené actualizados tus datos de contacto y tu sede. El email de acceso no se puede modificar desde el portal."
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
@@ -52,7 +57,7 @@ export default async function ProfilePage() {
           </div>
 
           <div className="mt-5">
-            <ProfileForm profile={profile} />
+            <ProfileForm profile={profile} branches={branches} />
           </div>
         </section>
 
@@ -78,6 +83,15 @@ export default async function ProfilePage() {
                     {profile.role === "admin"
                       ? "Administrador del portal"
                       : "Paciente registrado"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <MapPin className="mt-0.5 size-4 shrink-0 text-muted" />
+                <div>
+                  <p className="font-semibold text-ink">Sede</p>
+                  <p className="text-muted">
+                    {branch ? `${branch.name}, ${branch.province}` : "Sin sede asignada"}
                   </p>
                 </div>
               </div>

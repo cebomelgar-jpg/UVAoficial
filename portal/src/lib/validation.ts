@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAllowedImageUrl } from "@/lib/images";
 
 const optionalText = (max: number) =>
   z
@@ -33,6 +34,7 @@ export const registerSchema = z
       .min(6, "Ingresá un teléfono de contacto.")
       .max(30, "Máximo 30 caracteres."),
     email: z.string().trim().email("Ingresá un email válido."),
+    branchId: z.string().uuid("Elegí una sede válida."),
     password: z
       .string()
       .min(8, "La contraseña debe tener al menos 8 caracteres.")
@@ -55,9 +57,11 @@ export const registerSchema = z
 export const profileSchema = z.object({
   fullName: z.string().trim().min(2, "Ingresá tu nombre.").max(80),
   phone: z.string().trim().min(6, "Ingresá un teléfono.").max(30),
+  branchId: z.string().uuid("Elegí una sede válida."),
 });
 
 export const productSchema = z.object({
+  branchId: z.string().uuid("Elegí una sede válida."),
   name: z.string().trim().min(2, "El nombre es obligatorio.").max(80),
   slug: z
     .string()
@@ -77,7 +81,10 @@ export const productSchema = z.object({
   price: z.number().min(0, "El precio no puede ser negativo.").max(100_000_000),
   stock: z.number().int().min(0, "El stock no puede ser negativo.").max(100_000),
   presentation: optionalText(40),
-  image_url: optionalText(500),
+  image_url: optionalText(500).refine(isAllowedImageUrl, {
+    message:
+      "Usá una ruta local (/products/...) o una URL pública de Supabase Storage.",
+  }),
   active: z.boolean(),
   featured: z.boolean(),
   sort_order: z.number().int().min(-9999).max(9999),

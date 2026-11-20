@@ -4,7 +4,10 @@ import { Leaf, MessageCircle, PackageSearch } from "lucide-react";
 import { CatalogClient } from "@/components/catalog/catalog-client";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getActiveProducts } from "@/lib/data";
+import { BranchBadge } from "@/components/ui/branch-badge";
+import { requireProfile } from "@/lib/auth";
+import { findBranch, findBranchById } from "@/lib/branches";
+import { getActiveProducts, getBranches } from "@/lib/data";
 import { whatsappUrl } from "@/lib/config";
 import type { ProductCategory } from "@/lib/types";
 
@@ -17,27 +20,42 @@ const validCategories: ProductCategory[] = ["flores", "rosin_hash", "vapes"];
 export default async function CatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ categoria?: string }>;
+  searchParams: Promise<{ categoria?: string; sede?: string }>;
 }) {
   const params = await searchParams;
+  const profile = await requireProfile();
+  const branches = await getBranches();
+  const previewBranch =
+    profile.role === "admin" ? findBranch(branches, params.sede) : null;
+  const branch =
+    previewBranch ??
+    findBranchById(branches, profile.branch_id) ??
+    (profile.role === "admin" ? branches[0] ?? null : null);
   const initialCategory = validCategories.includes(
     params.categoria as ProductCategory,
   )
     ? (params.categoria as ProductCategory)
     : "todos";
-  const products = await getActiveProducts();
+  const products = await getActiveProducts(undefined, branch?.id);
 
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Catálogo privado"
+        eyebrow={profile.role === "admin" ? "Vista previa del catálogo" : "Catálogo privado"}
         title="Elegí con calma."
-        description="Fichas con cannabinoides, proporción sativa/indica, aromas, sabores y stock. Los precios y la disponibilidad se confirman al crear el pedido."
+        description={
+          branch
+            ? `Catálogo de ${branch.name}. Fichas con cannabinoides, proporción sativa/indica, aromas, sabores y stock. Los precios y la disponibilidad se confirman al crear el pedido.`
+            : "Fichas con cannabinoides, proporción sativa/indica, aromas, sabores y stock. Los precios y la disponibilidad se confirman al crear el pedido."
+        }
         actions={
-          <Link href="/portal/carrito" className="btn-outline">
-            <PackageSearch className="size-4" />
-            Ver carrito
-          </Link>
+          <>
+            <BranchBadge branch={branch} />
+            <Link href="/portal/carrito" className="btn-outline">
+              <PackageSearch className="size-4" />
+              Ver carrito
+            </Link>
+          </>
         }
       />
 
@@ -45,7 +63,11 @@ export default async function CatalogPage({
         <EmptyState
           icon={<Leaf className="size-6" />}
           title="El catálogo está en preparación"
-          description="El administrador todavía no publicó productos con precio y stock. Podés consultar disponibilidad mientras tanto."
+          description={
+            branch
+              ? `El administrador todavía no publicó productos con precio y stock para ${branch.name}. Podés consultar disponibilidad mientras tanto.`
+              : "El administrador todavía no publicó productos con precio y stock. Podés consultar disponibilidad mientras tanto."
+          }
           action={
             <a
               href={whatsappUrl("Hola, quisiera consultar por los productos disponibles en el portal.")}
@@ -64,6 +86,9 @@ export default async function CatalogPage({
             <Leaf className="size-4" />
             Catálogo exclusivo para pacientes registrados. El stock se descuenta
             al confirmar el pedido.
+            {profile.role === "admin" && branch ? (
+              <span className="font-semibold">Vista previa: {branch.name}.</span>
+            ) : null}
           </div>
           <CatalogClient products={products} initialCategory={initialCategory} />
         </>

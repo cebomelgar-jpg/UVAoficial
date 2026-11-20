@@ -742,8 +742,38 @@ $$;
 -- No inventamos precios ni concentraciones que no estén publicadas.
 -- La ficha "Genética 07 · A definir" y las fichas de vapes quedan reservadas
 -- para que el administrador las complete sin tocar código.
+--
+-- El seed es idempotente en ambos esquemas:
+--   * Antes de la migración multi-sede usa `on conflict (slug)`.
+--   * Después de la migración multi-sede detecta `products.branch_id` y carga
+--     el catálogo en Paraná con `on conflict (branch_id, slug)`.
+-- Así se puede volver a ejecutar sin romper la restricción NOT NULL ni la
+-- unicidad compuesta.
 
-insert into public.products (
+drop table if exists _seed_catalog;
+
+create temp table _seed_catalog (
+  slug text primary key,
+  name text not null,
+  category text not null,
+  description text,
+  thc text,
+  cbd text,
+  sativa_percent integer,
+  indica_percent integer,
+  aromas text[] not null,
+  flavors text[] not null,
+  effects text[] not null,
+  price numeric(12, 2) not null,
+  stock integer not null,
+  presentation text,
+  image_url text,
+  active boolean not null,
+  featured boolean not null,
+  sort_order integer not null
+);
+
+insert into _seed_catalog (
   slug, name, category, description, thc, cbd, sativa_percent, indica_percent,
   aromas, flavors, effects, price, stock, presentation, image_url, active, featured, sort_order
 )
@@ -834,7 +864,1139 @@ values
     null, null, null, null,
     array[]::text[], array[]::text[], array[]::text[],
     0, 0, 'Vape', '/products/vape-placeholder.svg', false, false, 20
+  );
+
+do $$
+declare
+  v_has_branch boolean;
+  v_branch_id uuid;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'products'
+      and column_name = 'branch_id'
+  ) into v_has_branch;
+
+  if v_has_branch then
+    select id into v_branch_id
+    from public.branches
+    where slug = 'parana';
+
+    if v_branch_id is null then
+      raise exception
+        'No existe la sede Paraná. Aplicá la migración multi-sede antes de re-ejecutar el seed.';
+    end if;
+
+    insert into public.products (
+      branch_id, slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    )
+    select
+      v_branch_id, slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    from _seed_catalog
+    on conflict (branch_id, slug) do nothing;
+  else
+    insert into public.products (
+      slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    )
+    select
+      slug, name, category, description, thc, cbd,
+      sativa_percent, indica_percent, aromas, flavors, effects,
+      price, stock, presentation, image_url, active, featured, sort_order
+    from _seed_catalog
+    on conflict (slug) do nothing;
+  end if;
+end
+$$;
+
+drop table if exists _seed_catalog;
+
+-- ===========================================================================
+-- 202610260001_multi_branch.sql
+-- ===========================================================================
+-- Un Viaje Astral · Portal de pacientes
+-- 0007 · Multi-sede (Paraná y Villaguay)
+--
+-- Objetivo:
+--   * Catálogos, pacientes y pedidos independientes por sede.
+--   * Backfill seguro de los datos existentes en Paraná.
+--   * RLS y create_order() con validación de sede.
+--
+-- Esta migración es incremental. No reescribe las migraciones históricas.
+-- Si ya corriste apply-all.sql antes de esta versión, ejecutá solamente este
+-- archivo en el SQL Editor de Supabase.
+
+-- ---------------------------------------------------------------------------
+-- Sedes
+-- ---------------------------------------------------------------------------
+create table if not exists public.branches (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique
+    check (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  name text not null,
+  city text not null,
+  province text not null default 'Entre Ríos',
+  address text,
+  phone text,
+  active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+insert into public.branches (id, slug, name, city, province, address, sort_order)
+values
+  (
+    'b0000000-0000-4000-8000-000000000001',
+    'parana',
+    'Paraná',
+    'Paraná',
+    'Entre Ríos',
+    'Victoria 235, Paraná',
+    10
+  ),
+  (
+    'b0000000-0000-4000-8000-000000000002',
+    'villaguay',
+    'Villaguay',
+    'Villaguay',
+    'Entre Ríos',
+    null,
+    20
   )
-on conflict (slug) do nothing;
+on conflict (id) do update
+  set slug = excluded.slug,
+      name = excluded.name,
+      city = excluded.city,
+      province = excluded.province,
+      address = excluded.address,
+      sort_order = excluded.sort_order,
+      active = true;
+
+create index if not exists branches_active_sort_idx
+  on public.branches (active, sort_order, name);
+
+drop trigger if exists branches_set_updated_at on public.branches;
+create trigger branches_set_updated_at
+before update on public.branches
+for each row execute function public.set_updated_at();
+
+comment on table public.branches is 'Sedes operativas del portal. Cada sede tiene su propio catálogo.';
+comment on column public.branches.slug is 'Identificador estable para filtros y enlaces, por ejemplo ?sede=villaguay.';
+
+-- ---------------------------------------------------------------------------
+-- Columnas de sede en perfiles, productos y pedidos
+-- ---------------------------------------------------------------------------
+alter table public.profiles
+  add column if not exists branch_id uuid references public.branches (id) on delete restrict;
+
+alter table public.products
+  add column if not exists branch_id uuid references public.branches (id) on delete restrict;
+
+alter table public.orders
+  add column if not exists branch_id uuid references public.branches (id) on delete restrict;
+
+-- Los datos históricos quedan en Paraná. Luego un administrador puede
+-- reasignar pacientes, productos o pedidos desde la operación habitual
+-- (los productos y perfiles se pueden editar; los pedidos conservan la sede
+-- con la que fueron creados).
+update public.profiles
+set branch_id = (
+  select id from public.branches where slug = 'parana'
+)
+where branch_id is null;
+
+update public.products
+set branch_id = (
+  select id from public.branches where slug = 'parana'
+)
+where branch_id is null;
+
+update public.orders
+set branch_id = coalesce(
+  (
+    select p.branch_id
+    from public.profiles p
+    where p.id = public.orders.user_id
+  ),
+  (
+    select id from public.branches where slug = 'parana'
+  )
+)
+where branch_id is null;
+
+alter table public.products
+  alter column branch_id set not null;
+
+alter table public.profiles
+  drop constraint if exists profiles_patient_branch_required;
+alter table public.profiles
+  add constraint profiles_patient_branch_required
+  check (role <> 'patient' or branch_id is not null) not valid;
+alter table public.profiles
+  validate constraint profiles_patient_branch_required;
+
+alter table public.orders
+  alter column branch_id set not null;
+
+-- El slug deja de ser único globalmente: cada sede puede repetirlo.
+alter table public.products
+  drop constraint if exists products_slug_key;
+drop index if exists products_slug_key;
+
+create unique index if not exists products_branch_slug_key
+  on public.products (branch_id, slug);
+
+create index if not exists profiles_branch_idx
+  on public.profiles (branch_id);
+
+create index if not exists products_branch_active_sort_idx
+  on public.products (branch_id, active, sort_order, name);
+
+create index if not exists products_branch_category_active_idx
+  on public.products (branch_id, category, active);
+
+create index if not exists orders_branch_created_idx
+  on public.orders (branch_id, created_at desc);
+
+create index if not exists orders_branch_status_created_idx
+  on public.orders (branch_id, status, created_at desc);
+
+comment on column public.profiles.branch_id is 'Sede del paciente (obligatoria para rol patient).';
+comment on column public.products.branch_id is 'Sede dueña de esta ficha de catálogo.';
+comment on column public.orders.branch_id is 'Sede del catálogo usado al crear el pedido.';
+
+-- ---------------------------------------------------------------------------
+-- Helpers de RLS
+-- ---------------------------------------------------------------------------
+create or replace function public.current_branch_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select branch_id
+  from public.profiles
+  where id = auth.uid()
+  limit 1;
+$$;
+
+revoke all on function public.current_branch_id() from public;
+grant execute on function public.current_branch_id() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Alta de perfil: la sede viene en los metadatos de auth o cae en Paraná
+-- ---------------------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_branch_ref text;
+  v_branch public.branches%rowtype;
+begin
+  v_branch_ref := lower(nullif(trim(new.raw_user_meta_data ->> 'branch_id'), ''));
+
+  if v_branch_ref is null then
+    v_branch_ref := lower(nullif(trim(new.raw_user_meta_data ->> 'branch_slug'), ''));
+  end if;
+
+  if v_branch_ref is not null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+      and (id::text = v_branch_ref or lower(slug) = v_branch_ref)
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+      and slug = 'parana'
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+    order by sort_order, name
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    raise exception 'No hay sedes activas configuradas.';
+  end if;
+
+  insert into public.profiles (id, full_name, phone, role, branch_id)
+  values (
+    new.id,
+    coalesce(
+      nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+      split_part(coalesce(new.email, ''), '@', 1),
+      'Paciente'
+    ),
+    nullif(trim(new.raw_user_meta_data ->> 'phone'), ''),
+    'patient',
+    v_branch.id
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------------
+-- Creación atómica de pedidos, ahora validando la sede del catálogo
+-- ---------------------------------------------------------------------------
+create or replace function public.create_order(
+  p_items jsonb,
+  p_payment_method text,
+  p_fulfillment_method text,
+  p_contact_phone text,
+  p_delivery_address text default null,
+  p_notes text default null,
+  p_therapeutic_notes text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_profile public.profiles%rowtype;
+  v_product public.products%rowtype;
+  v_order_id uuid;
+  v_total numeric(12, 2) := 0;
+  v_quantity integer;
+  v_contact_phone text;
+  v_patient_email text;
+  v_item record;
+begin
+  if v_user_id is null then
+    raise exception 'Tenés que iniciar sesión para confirmar el pedido.';
+  end if;
+
+  if p_payment_method is null or p_payment_method not in ('cash', 'bank_transfer') then
+    raise exception 'Método de pago inválido.';
+  end if;
+
+  if p_fulfillment_method is null or p_fulfillment_method not in ('pickup', 'delivery') then
+    raise exception 'Método de entrega inválido.';
+  end if;
+
+  if p_fulfillment_method = 'delivery'
+     and nullif(trim(p_delivery_address), '') is null then
+    raise exception 'Ingresá una dirección para la entrega.';
+  end if;
+
+  if p_items is null
+     or jsonb_typeof(p_items) <> 'array'
+     or jsonb_array_length(p_items) = 0 then
+    raise exception 'El carrito está vacío.';
+  end if;
+
+  select * into v_profile
+  from public.profiles
+  where id = v_user_id;
+
+  if not found then
+    raise exception 'No encontramos tu perfil de paciente.';
+  end if;
+
+  if v_profile.role <> 'patient' then
+    raise exception 'Solo los pacientes pueden confirmar pedidos.';
+  end if;
+
+  if v_profile.branch_id is null then
+    raise exception 'Tu perfil no tiene una sede asignada. Contactá a la asociación.';
+  end if;
+
+  v_contact_phone := coalesce(nullif(trim(p_contact_phone), ''), v_profile.phone);
+  if v_contact_phone is null or length(v_contact_phone) < 6 then
+    raise exception 'Ingresá un teléfono de contacto.';
+  end if;
+
+  select email into v_patient_email
+  from auth.users
+  where id = v_user_id;
+
+  -- Primera pasada: bloquear filas, validar stock y calcular el total real.
+  for v_item in
+    select
+      (value ->> 'product_id')::uuid as product_id,
+      sum(coalesce((value ->> 'quantity')::integer, 0))::integer as quantity
+    from jsonb_array_elements(p_items)
+    group by 1
+  loop
+    if v_item.product_id is null then
+      raise exception 'Uno de los productos del carrito es inválido.';
+    end if;
+
+    v_quantity := v_item.quantity;
+    if v_quantity is null or v_quantity < 1 or v_quantity > 99 then
+      raise exception 'La cantidad de uno de los productos es inválida.';
+    end if;
+
+    select * into v_product
+    from public.products
+    where id = v_item.product_id
+      and branch_id = v_profile.branch_id
+      and active = true
+    for update;
+
+    if not found then
+      raise exception 'Uno de los productos ya no está disponible en tu sede.';
+    end if;
+
+    if v_product.stock < v_quantity then
+      raise exception 'Stock insuficiente para %.', v_product.name;
+    end if;
+
+    v_total := v_total + (v_product.price * v_quantity);
+  end loop;
+
+  if v_total <= 0 then
+    raise exception 'El total del pedido no puede ser cero. Contactá a la asociación.';
+  end if;
+
+  insert into public.orders (
+    user_id,
+    branch_id,
+    patient_name,
+    patient_email,
+    status,
+    payment_method,
+    payment_status,
+    fulfillment_method,
+    contact_phone,
+    delivery_address,
+    subtotal,
+    total,
+    notes,
+    therapeutic_notes
+  )
+  values (
+    v_user_id,
+    v_profile.branch_id,
+    v_profile.full_name,
+    v_patient_email,
+    'pending',
+    p_payment_method,
+    'pending',
+    p_fulfillment_method,
+    v_contact_phone,
+    nullif(trim(p_delivery_address), ''),
+    v_total,
+    v_total,
+    nullif(trim(p_notes), ''),
+    nullif(trim(p_therapeutic_notes), '')
+  )
+  returning id into v_order_id;
+
+  -- Segunda pasada: guardar el detalle histórico y descontar stock.
+  for v_item in
+    select
+      (value ->> 'product_id')::uuid as product_id,
+      sum(coalesce((value ->> 'quantity')::integer, 0))::integer as quantity
+    from jsonb_array_elements(p_items)
+    group by 1
+  loop
+    select * into v_product
+    from public.products
+    where id = v_item.product_id
+      and branch_id = v_profile.branch_id
+      and active = true
+    for update;
+
+    if not found then
+      raise exception 'Uno de los productos ya no está disponible en tu sede.';
+    end if;
+
+    if v_product.stock < v_item.quantity then
+      raise exception 'Stock insuficiente para %.', v_product.name;
+    end if;
+
+    insert into public.order_items (
+      order_id,
+      product_id,
+      product_name,
+      product_slug,
+      category,
+      image_url,
+      unit_price,
+      quantity,
+      line_total
+    )
+    values (
+      v_order_id,
+      v_product.id,
+      v_product.name,
+      v_product.slug,
+      v_product.category,
+      v_product.image_url,
+      v_product.price,
+      v_item.quantity,
+      v_product.price * v_item.quantity
+    );
+
+    update public.products
+    set stock = stock - v_item.quantity,
+        updated_at = now()
+    where id = v_product.id;
+  end loop;
+
+  return v_order_id;
+end;
+$$;
+
+revoke all on function public.create_order(jsonb, text, text, text, text, text, text) from public;
+grant execute on function public.create_order(jsonb, text, text, text, text, text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Row Level Security por sede
+-- ---------------------------------------------------------------------------
+
+-- Sedes: todo el mundo puede leer las activas (lo necesita el registro).
+-- Los administradores ven también las inactivas.
+alter table public.branches enable row level security;
+
+-- Eliminar las políticas globales de la versión anterior. Sin esto, las
+-- políticas se suman con OR y un paciente podría ver catálogos de otra sede.
+drop policy if exists "profiles_select_own_or_admin" on public.profiles;
+drop policy if exists "products_select_active_or_admin" on public.products;
+drop policy if exists "products_admin_insert" on public.products;
+drop policy if exists "products_admin_update" on public.products;
+drop policy if exists "products_admin_delete" on public.products;
+drop policy if exists "orders_select_own_or_admin" on public.orders;
+drop policy if exists "orders_admin_update" on public.orders;
+drop policy if exists "order_items_select_own_or_admin" on public.order_items;
+
+drop policy if exists "branches_select_active" on public.branches;
+create policy "branches_select_active"
+on public.branches for select
+to anon, authenticated
+using (active = true);
+
+drop policy if exists "branches_select_admin" on public.branches;
+create policy "branches_select_admin"
+on public.branches for select
+to authenticated
+using (public.is_admin());
+
+drop policy if exists "branches_insert_admin" on public.branches;
+create policy "branches_insert_admin"
+on public.branches for insert
+to authenticated
+with check (public.is_admin());
+
+drop policy if exists "branches_update_admin" on public.branches;
+create policy "branches_update_admin"
+on public.branches for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- Perfiles: cada paciente ve su perfil; el administrador ve todos. Un paciente
+-- sólo puede cambiar su sede a otra sede activa.
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own"
+on public.profiles for select
+to authenticated
+using (id = auth.uid());
+
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own"
+on public.profiles for update
+to authenticated
+using (id = auth.uid() and role = 'patient')
+with check (
+  id = auth.uid()
+  and role = 'patient'
+  and branch_id is not null
+  and exists (
+    select 1 from public.branches b
+    where b.id = branch_id and b.active = true
+  )
+);
+
+drop policy if exists "profiles_admin_select" on public.profiles;
+create policy "profiles_admin_select"
+on public.profiles for select
+to authenticated
+using (public.is_admin());
+
+drop policy if exists "profiles_admin_update" on public.profiles;
+create policy "profiles_admin_update"
+on public.profiles for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- Productos: el paciente sólo ve el catálogo activo de su sede. El admin
+-- puede operar cualquier sede y la vista filtra por ?sede=.
+drop policy if exists "products_select_authenticated" on public.products;
+create policy "products_select_authenticated"
+on public.products for select
+to authenticated
+using (
+  active = true
+  and branch_id = public.current_branch_id()
+);
+
+drop policy if exists "products_admin_all" on public.products;
+create policy "products_admin_all"
+on public.products for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- Pedidos: el paciente conserva su historial completo aunque cambie de sede.
+-- El administrador puede ver y operar pedidos de todas las sedes.
+drop policy if exists "orders_select_own" on public.orders;
+create policy "orders_select_own"
+on public.orders for select
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists "orders_admin_all" on public.orders;
+create policy "orders_admin_all"
+on public.orders for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- Mantener las políticas de order_items, pero alineadas al pedido.
+drop policy if exists "order_items_select_accessible" on public.order_items;
+create policy "order_items_select_accessible"
+on public.order_items for select
+to authenticated
+using (public.can_access_order(order_id));
+
+-- ===========================================================================
+-- 202610270001_patient_documents.sql
+-- ===========================================================================
+-- Un Viaje Astral · Portal de pacientes
+-- 0008 · Documentación del paciente
+--
+-- Cada paciente puede subir un archivo vigente por tipo de documento:
+--   * tramite   → certificado de trámite habilitado
+--   * reprocann → credencial REPROCANN
+--
+-- Los archivos viven en un bucket privado. Solo el propio paciente y los
+-- administradores pueden leerlos.
+
+create table if not exists public.patient_documents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  document_type text not null
+    check (document_type in ('tramite', 'reprocann')),
+  file_path text not null,
+  file_name text not null,
+  mime_type text not null,
+  file_size bigint not null check (file_size > 0),
+  uploaded_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, document_type)
+);
+
+drop trigger if exists patient_documents_set_updated_at on public.patient_documents;
+create trigger patient_documents_set_updated_at
+before update on public.patient_documents
+for each row execute function public.set_updated_at();
+
+comment on table public.patient_documents is
+  'Documentación privada del paciente: certificado de trámite habilitado y credencial REPROCANN.';
+comment on column public.patient_documents.file_path is
+  'Ruta del archivo dentro del bucket privado patient-documents.';
+
+alter table public.patient_documents enable row level security;
+
+drop policy if exists "patient_documents_select_own" on public.patient_documents;
+create policy "patient_documents_select_own"
+on public.patient_documents for select
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists "patient_documents_insert_own" on public.patient_documents;
+create policy "patient_documents_insert_own"
+on public.patient_documents for insert
+to authenticated
+with check (user_id = auth.uid());
+
+drop policy if exists "patient_documents_update_own" on public.patient_documents;
+create policy "patient_documents_update_own"
+on public.patient_documents for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+drop policy if exists "patient_documents_delete_own" on public.patient_documents;
+create policy "patient_documents_delete_own"
+on public.patient_documents for delete
+to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists "patient_documents_admin_all" on public.patient_documents;
+create policy "patient_documents_admin_all"
+on public.patient_documents for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- ---------------------------------------------------------------------------
+-- Storage privado
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'patient-documents',
+  'patient-documents',
+  false,
+  10485760,
+  array['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+-- Cada paciente opera únicamente su carpeta `<uid>/...`. Los administradores
+-- pueden leer y administrar todos los archivos.
+drop policy if exists "patient_documents_storage_select" on storage.objects;
+create policy "patient_documents_storage_select"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'patient-documents'
+  and (
+    (storage.foldername(name))[1] = auth.uid()::text
+    or public.is_admin()
+  )
+);
+
+drop policy if exists "patient_documents_storage_insert" on storage.objects;
+create policy "patient_documents_storage_insert"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'patient-documents'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "patient_documents_storage_update" on storage.objects;
+create policy "patient_documents_storage_update"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'patient-documents'
+  and (
+    (storage.foldername(name))[1] = auth.uid()::text
+    or public.is_admin()
+  )
+)
+with check (
+  bucket_id = 'patient-documents'
+  and (
+    (storage.foldername(name))[1] = auth.uid()::text
+    or public.is_admin()
+  )
+);
+
+drop policy if exists "patient_documents_storage_delete" on storage.objects;
+create policy "patient_documents_storage_delete"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'patient-documents'
+  and (
+    (storage.foldername(name))[1] = auth.uid()::text
+    or public.is_admin()
+  )
+);
+
+
+-- ===========================================================================
+-- 202610280001_profile_approval.sql
+-- ===========================================================================
+-- Un Viaje Astral · Portal de pacientes
+-- 0009 · Habilitación de cuentas y gestión de perfiles
+--
+-- * Agrega estado de aprobación, email y trazabilidad al perfil.
+-- * Los registros nuevos quedan pendientes hasta que un administrador los habilite.
+-- * Guarda una copia cifrada de la contraseña para que el administrador pueda
+--   consultarla y restablecerla. La contraseña de Supabase Auth sigue siendo
+--   la fuente de verdad para el login.
+
+-- ---------------------------------------------------------------------------
+-- Columnas nuevas
+-- ---------------------------------------------------------------------------
+alter table public.profiles
+  add column if not exists email text;
+
+alter table public.profiles
+  add column if not exists approved_at timestamptz;
+
+alter table public.profiles
+  add column if not exists approved_by uuid references public.profiles (id) on delete set null;
+
+do $$
+declare
+  v_has_status boolean;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'status'
+  ) into v_has_status;
+
+  if not v_has_status then
+    alter table public.profiles
+      add column status text not null default 'pending'
+        check (status in ('pending', 'approved', 'rejected', 'suspended'));
+
+    -- Los perfiles que ya existían conservan el acceso.
+    update public.profiles
+    set status = 'approved',
+        approved_at = coalesce(approved_at, now())
+    where status = 'pending';
+  end if;
+end
+$$;
+
+-- Backfill de email para perfiles históricos.
+update public.profiles p
+set email = u.email
+from auth.users u
+where p.id = u.id
+  and (p.email is null or p.email = '');
+
+create index if not exists profiles_status_created_idx
+  on public.profiles (status, created_at desc);
+
+create index if not exists profiles_email_idx
+  on public.profiles (lower(email));
+
+-- ---------------------------------------------------------------------------
+-- Credenciales cifradas para el panel de administración
+-- ---------------------------------------------------------------------------
+create table if not exists public.profile_credentials (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  password_ciphertext text not null,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references public.profiles (id) on delete set null
+);
+
+alter table public.profile_credentials enable row level security;
+
+drop policy if exists "profile_credentials_admin_select" on public.profile_credentials;
+create policy "profile_credentials_admin_select"
+on public.profile_credentials for select
+to authenticated
+using (public.is_admin());
+
+-- Solo el service role escribe esta tabla. No hay políticas de INSERT/UPDATE/DELETE
+-- para usuarios autenticados.
+
+comment on table public.profile_credentials is
+  'Copia cifrada de la contraseña para el panel de administración. No usar para autenticar.';
+comment on column public.profile_credentials.password_ciphertext is
+  'AES-256-GCM con clave server-only CREDENTIALS_ENCRYPTION_KEY.';
+
+-- ---------------------------------------------------------------------------
+-- is_admin() ahora exige estado aprobado
+-- ---------------------------------------------------------------------------
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'admin'
+      and status = 'approved'
+  );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- is_approved(): helper para RLS
+-- ---------------------------------------------------------------------------
+create or replace function public.is_approved()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and status = 'approved'
+  );
+$$;
+
+revoke all on function public.is_approved() from public;
+grant execute on function public.is_approved() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Alta de perfil: email y estado pendiente
+-- ---------------------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_branch_ref text;
+  v_branch public.branches%rowtype;
+begin
+  v_branch_ref := lower(nullif(trim(new.raw_user_meta_data ->> 'branch_id'), ''));
+
+  if v_branch_ref is null then
+    v_branch_ref := lower(nullif(trim(new.raw_user_meta_data ->> 'branch_slug'), ''));
+  end if;
+
+  if v_branch_ref is not null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+      and (id::text = v_branch_ref or lower(slug) = v_branch_ref)
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+      and slug = 'parana'
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+    order by sort_order, name
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    raise exception 'No hay sedes activas configuradas.';
+  end if;
+
+  insert into public.profiles (id, full_name, phone, role, branch_id, email, status)
+  values (
+    new.id,
+    coalesce(
+      nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+      split_part(coalesce(new.email, ''), '@', 1),
+      'Paciente'
+    ),
+    nullif(trim(new.raw_user_meta_data ->> 'phone'), ''),
+    'patient',
+    v_branch.id,
+    new.email,
+    'pending'
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------------
+-- Protección del perfil: el paciente no puede autoaprobarse ni cambiar su email
+-- ---------------------------------------------------------------------------
+create or replace function public.protect_profile_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.id <> old.id then
+    raise exception 'No se puede cambiar el identificador del perfil.';
+  end if;
+
+  if auth.uid() is not null and not public.is_admin() then
+    if new.role is distinct from old.role then
+      raise exception 'Solo un administrador puede cambiar roles.';
+    end if;
+
+    if new.status is distinct from old.status
+       or new.approved_at is distinct from old.approved_at
+       or new.approved_by is distinct from old.approved_by
+       or new.email is distinct from old.email then
+      raise exception 'Solo un administrador puede cambiar el estado del perfil.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_protect_role on public.profiles;
+create trigger profiles_protect_role
+before update on public.profiles
+for each row execute function public.protect_profile_role();
+
+-- ---------------------------------------------------------------------------
+-- RLS: el catálogo y la documentación requieren cuenta aprobada
+-- ---------------------------------------------------------------------------
+drop policy if exists "products_select_authenticated" on public.products;
+drop policy if exists "products_select_active_or_admin" on public.products;
+create policy "products_select_authenticated"
+on public.products for select
+to authenticated
+using (
+  active = true
+  and branch_id = public.current_branch_id()
+  and public.is_approved()
+);
+
+-- patient_documents: solo cuentas aprobadas pueden operar sus documentos.
+drop policy if exists "patient_documents_select_own" on public.patient_documents;
+create policy "patient_documents_select_own"
+on public.patient_documents for select
+to authenticated
+using (user_id = auth.uid() and public.is_approved());
+
+drop policy if exists "patient_documents_insert_own" on public.patient_documents;
+create policy "patient_documents_insert_own"
+on public.patient_documents for insert
+to authenticated
+with check (user_id = auth.uid() and public.is_approved());
+
+drop policy if exists "patient_documents_update_own" on public.patient_documents;
+create policy "patient_documents_update_own"
+on public.patient_documents for update
+to authenticated
+using (user_id = auth.uid() and public.is_approved())
+with check (user_id = auth.uid() and public.is_approved());
+
+drop policy if exists "patient_documents_delete_own" on public.patient_documents;
+create policy "patient_documents_delete_own"
+on public.patient_documents for delete
+to authenticated
+using (user_id = auth.uid() and public.is_approved());
+
+-- Storage de documentación: lectura/escritura solo para cuentas aprobadas.
+drop policy if exists "patient_documents_storage_select" on storage.objects;
+create policy "patient_documents_storage_select"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'patient-documents'
+  and (
+    ((storage.foldername(name))[1] = auth.uid()::text and public.is_approved())
+    or public.is_admin()
+  )
+);
+
+drop policy if exists "patient_documents_storage_insert" on storage.objects;
+create policy "patient_documents_storage_insert"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'patient-documents'
+  and (storage.foldername(name))[1] = auth.uid()::text
+  and public.is_approved()
+);
+
+drop policy if exists "patient_documents_storage_update" on storage.objects;
+create policy "patient_documents_storage_update"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'patient-documents'
+  and (
+    ((storage.foldername(name))[1] = auth.uid()::text and public.is_approved())
+    or public.is_admin()
+  )
+)
+with check (
+  bucket_id = 'patient-documents'
+  and (
+    ((storage.foldername(name))[1] = auth.uid()::text and public.is_approved())
+    or public.is_admin()
+  )
+);
+
+drop policy if exists "patient_documents_storage_delete" on storage.objects;
+create policy "patient_documents_storage_delete"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'patient-documents'
+  and (
+    ((storage.foldername(name))[1] = auth.uid()::text and public.is_approved())
+    or public.is_admin()
+  )
+);
+
+-- ---------------------------------------------------------------------------
+-- Pedidos: bloquear la creación si la cuenta no está aprobada
+-- ---------------------------------------------------------------------------
+create or replace function public.enforce_approved_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.user_id is not null then
+    if not exists (
+      select 1
+      from public.profiles
+      where id = new.user_id
+        and status = 'approved'
+    ) then
+      raise exception 'Tu cuenta todavía no está habilitada para hacer pedidos.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists orders_require_approved on public.orders;
+create trigger orders_require_approved
+before insert on public.orders
+for each row execute function public.enforce_approved_order();
 
 commit;

@@ -549,19 +549,25 @@ export async function getAdminProfiles(): Promise<{
   ready: boolean;
 }> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(
-      "*, branch:branches(id, slug, name, city, province)",
-    )
-    .order("created_at", { ascending: false });
+  const pageSize = 500;
+  const data = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data: page, error } = await supabase
+      .from("profiles")
+      .select("*, branch:branches(id, slug, name, city, province)")
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
 
-  if (error) {
-    console.error("[data] No pudimos cargar los perfiles.", error.message);
-    return { profiles: [], ready: false };
+    if (error) {
+      console.error("[data] No pudimos cargar los perfiles.", error.message);
+      return { profiles: [], ready: false };
+    }
+
+    data.push(...(page ?? []));
+    if (!page || page.length < pageSize) break;
   }
 
-  const profiles = ((data ?? []) as Array<
+  const profiles = (data as Array<
     Profile & { branch: Branch | null }
   >).map((profile) => {
     return {

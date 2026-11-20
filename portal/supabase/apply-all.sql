@@ -1988,4 +1988,26 @@ alter table public.profiles
 
 drop table if exists public.profile_credentials;
 
+-- ---------------------------------------------------------------------------
+-- Publicación Realtime para el panel administrativo de perfiles
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication where pubname = 'supabase_realtime'
+  ) then
+    raise exception 'No existe la publicación supabase_realtime.';
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'profiles'
+  ) then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+end
+$$;
+
 commit;

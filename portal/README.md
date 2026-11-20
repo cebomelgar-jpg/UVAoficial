@@ -81,12 +81,12 @@ Las variables se documentan en `.env.example`. Nunca subas `.env.local` al repos
 
 | Variable | Uso |
 | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | Solo para `scripts/bootstrap-admin.mjs` y `scripts/verify-supabase.mjs`; nunca en el navegador ni necesaria en Vercel |
+| `SUPABASE_SERVICE_ROLE_KEY` | Solo servidor: restablecer contraseñas desde el panel y ejecutar `scripts/bootstrap-admin.mjs` / `scripts/verify-supabase.mjs`; nunca en el navegador |
 | `ADMIN_EMAIL` | Email del administrador inicial |
 | `ADMIN_PASSWORD` | Contraseña inicial, mínimo 8 caracteres |
 | `ADMIN_FULL_NAME` | Nombre visible del administrador |
 
-> `SUPABASE_SERVICE_ROLE_KEY` omite RLS. No debe llevar el prefijo `NEXT_PUBLIC_`, no debe exponerse en el cliente ni en el repositorio. En producción, el portal no necesita esta clave; solo se usa localmente para crear el primer administrador y verificar la base.
+> `SUPABASE_SERVICE_ROLE_KEY` omite RLS. No debe llevar el prefijo `NEXT_PUBLIC_`, no debe exponerse en el cliente ni en el repositorio. Configurala como variable secreta de servidor en Vercel (Production y Preview) para habilitar el restablecimiento administrativo de contraseñas. Sin ella, esa acción mostrará un error; el resto del portal seguirá usando RLS.
 
 ### Verificar la conexión
 
@@ -104,7 +104,7 @@ El comando comprueba la URL, las seis tablas (incluidas `branches` y `patient_do
 
 1. Creá un proyecto en [supabase.com](https://supabase.com).
 2. Copiá **Project URL** y **anon public key** desde *Project Settings → API* a `.env.local`.
-3. Copiá la **service_role key** únicamente para ejecutar el bootstrap del administrador.
+3. Configurá la **service_role key** como secreto de servidor para el restablecimiento de contraseñas; también se usa en los scripts de administración locales.
 
 ### 2. Aplicar las migraciones
 
@@ -120,6 +120,7 @@ Las migraciones están en `supabase/migrations/` y deben ejecutarse **en orden**
 8. `202610270001_patient_documents.sql` — documentación del paciente, bucket privado `patient-documents` y políticas de Storage.
 9. `202610280001_profile_approval.sql` — habilitación de cuentas, email y estado en perfiles, y RLS de aprobación.
 10. `202611200001_profile_approval_hardening.sql` — deniega por defecto el acceso de perfiles sin estado y elimina las copias recuperables de contraseñas.
+11. `202611200002_profiles_realtime.sql` — publica inserciones y cambios de perfiles para actualizar el panel administrativo en tiempo real.
 
 **Opción A: SQL Editor**
 
@@ -127,7 +128,7 @@ Abrí el SQL Editor de Supabase y ejecutá el contenido completo de cada archivo
 
 Para una aplicación nueva, también podés abrir `supabase/apply-all.sql`, copiar todo su contenido y ejecutarlo. Incluye todas las migraciones en orden dentro de una transacción; si una sentencia falla, no se aplica ningún cambio.
 
-Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql` y `202611200001_profile_approval_hardening.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación.
+Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql`, `202611200001_profile_approval_hardening.sql` y `202611200002_profiles_realtime.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación.
 
 Verificá la conexión y las migraciones aplicadas con `npm run verify:supabase` desde `portal/`. No habilites registros en producción hasta que el verificador confirme las columnas `profiles.status`/`profiles.email`, las sedes y el bucket privado de documentación.
 

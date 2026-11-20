@@ -4,6 +4,7 @@ import { Clock3, ShieldAlert, UserCheck, Users } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { AdminProfilesManager } from "@/components/admin/admin-profiles-manager";
+import { AdminProfilesRealtime } from "@/components/admin/admin-profiles-realtime";
 import { requireAdmin } from "@/lib/auth";
 import { getAdminProfiles, getBranches } from "@/lib/data";
 
@@ -31,9 +32,12 @@ export default async function AdminProfilesPage() {
         title="Perfiles"
         description="Habilitá cuentas nuevas, revisá los datos de contacto y administrá las contraseñas de todos los pacientes."
         actions={
-          <Link href="/admin" className="btn-outline btn-sm">
-            Volver al panel
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminProfilesRealtime />
+            <Link href="/admin" className="btn-outline btn-sm">
+              Volver al panel
+            </Link>
+          </div>
         }
       />
 

@@ -140,7 +140,7 @@ async function handleAuthenticatedRequest(
     }
 
     const role = (profile as { role?: string } | null)?.role;
-    const status = (profile as { status?: string } | null)?.status ?? "approved";
+    const status = (profile as { status?: string } | null)?.status ?? "pending";
 
     if (isPathWithin(pathname, "/admin")) {
       if (role !== "admin" || status !== "approved") {

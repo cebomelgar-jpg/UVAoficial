@@ -552,7 +552,7 @@ export async function getAdminProfiles(): Promise<{
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "*, branch:branches(id, slug, name, city, province), credentials:profile_credentials(profile_id)",
+      "*, branch:branches(id, slug, name, city, province)",
     )
     .order("created_at", { ascending: false });
 
@@ -562,20 +562,15 @@ export async function getAdminProfiles(): Promise<{
   }
 
   const profiles = ((data ?? []) as Array<
-    Profile & {
-      branch: Branch | null;
-      credentials: { profile_id: string } | null;
-    }
+    Profile & { branch: Branch | null }
   >).map((profile) => {
-    const { credentials, ...rest } = profile;
     return {
-      ...rest,
+      ...profile,
       status: ((profile as { status?: ProfileStatus }).status ??
-        "approved") as ProfileStatus,
+        "pending") as ProfileStatus,
       email: (profile as { email?: string | null }).email ?? null,
       approved_at: (profile as { approved_at?: string | null }).approved_at ?? null,
       approved_by: (profile as { approved_by?: string | null }).approved_by ?? null,
-      has_password: Boolean(credentials),
     } as AdminProfile;
   });
 

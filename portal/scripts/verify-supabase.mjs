@@ -67,7 +67,6 @@ try {
 const tables = [
   "branches",
   "profiles",
-  "profile_credentials",
   "products",
   "orders",
   "order_items",

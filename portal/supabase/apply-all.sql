@@ -1699,32 +1699,6 @@ create index if not exists profiles_email_idx
   on public.profiles (lower(email));
 
 -- ---------------------------------------------------------------------------
--- Credenciales cifradas para el panel de administración
--- ---------------------------------------------------------------------------
-create table if not exists public.profile_credentials (
-  profile_id uuid primary key references public.profiles (id) on delete cascade,
-  password_ciphertext text not null,
-  updated_at timestamptz not null default now(),
-  updated_by uuid references public.profiles (id) on delete set null
-);
-
-alter table public.profile_credentials enable row level security;
-
-drop policy if exists "profile_credentials_admin_select" on public.profile_credentials;
-create policy "profile_credentials_admin_select"
-on public.profile_credentials for select
-to authenticated
-using (public.is_admin());
-
--- Solo el service role escribe esta tabla. No hay políticas de INSERT/UPDATE/DELETE
--- para usuarios autenticados.
-
-comment on table public.profile_credentials is
-  'Copia cifrada de la contraseña para el panel de administración. No usar para autenticar.';
-comment on column public.profile_credentials.password_ciphertext is
-  'AES-256-GCM con clave server-only CREDENTIALS_ENCRYPTION_KEY.';
-
--- ---------------------------------------------------------------------------
 -- is_admin() ahora exige estado aprobado
 -- ---------------------------------------------------------------------------
 create or replace function public.is_admin()
@@ -1998,5 +1972,20 @@ drop trigger if exists orders_require_approved on public.orders;
 create trigger orders_require_approved
 before insert on public.orders
 for each row execute function public.enforce_approved_order();
+
+-- ---------------------------------------------------------------------------
+-- Endurecimiento de aprobación y eliminación de copias de contraseñas
+-- ---------------------------------------------------------------------------
+alter table public.profiles
+  alter column status set default 'pending';
+
+update public.profiles
+set status = 'pending'
+where status is null;
+
+alter table public.profiles
+  alter column status set not null;
+
+drop table if exists public.profile_credentials;
 
 commit;

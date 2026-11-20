@@ -5,8 +5,6 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
-import { encryptPassword, isCredentialStorageConfigured } from "@/lib/credentials";
 import {
   firstZodError,
   loginSchema,
@@ -79,37 +77,6 @@ export async function loginAction(
   redirect(safeNext(formData.get("next")));
 }
 
-async function storeInitialPassword(userId: string, password: string) {
-  if (!isAdminClientConfigured()) {
-    console.warn(
-      "[auth] SUPABASE_SERVICE_ROLE_KEY no configurado; no se pudo guardar la contraseña cifrada.",
-    );
-    return;
-  }
-  if (!isCredentialStorageConfigured()) {
-    console.warn(
-      "[auth] No hay clave de cifrado; no se pudo guardar la contraseña cifrada.",
-    );
-    return;
-  }
-  try {
-    const adminClient = createAdminClient();
-    const { error } = await adminClient.from("profile_credentials").upsert(
-      {
-        profile_id: userId,
-        password_ciphertext: encryptPassword(password),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "profile_id" },
-    );
-    if (error) {
-      console.error("[auth] No se pudo guardar la contraseña cifrada.", error.message);
-    }
-  } catch (error) {
-    console.error("[auth] Error al guardar la contraseña cifrada.", error);
-  }
-}
-
 export async function registerAction(
   _previousState: ActionState,
   formData: FormData,
@@ -171,18 +138,13 @@ export async function registerAction(
     };
   }
 
-  const isNewUser = Boolean(data.user) && (data.user?.identities?.length ?? 0) > 0;
-  if (isNewUser && data.user) {
-    await storeInitialPassword(data.user.id, parsed.data.password);
-  }
-
   if (data.session) {
-    redirect("/portal");
+    redirect("/pendiente");
   }
 
   return {
     message:
-      "Cuenta creada. Te enviamos un email para confirmar tu dirección. Revisá también la carpeta de spam.",
+      "Cuenta creada. Confirmá tu email desde el enlace que te enviamos. Después, un administrador deberá habilitar tu acceso al portal.",
   };
 }
 

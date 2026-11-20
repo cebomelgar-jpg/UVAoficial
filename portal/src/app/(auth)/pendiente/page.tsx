@@ -20,7 +20,7 @@ export default async function PendingPage() {
   if (!user) redirect("/login");
 
   const profile = await getCurrentProfile();
-  const status = profile?.status ?? "approved";
+  const status = profile?.status ?? "pending";
 
   if (status === "approved") {
     redirect("/portal");

@@ -3,9 +3,6 @@
 --
 -- * Agrega estado de aprobación, email y trazabilidad al perfil.
 -- * Los registros nuevos quedan pendientes hasta que un administrador los habilite.
--- * Guarda una copia cifrada de la contraseña para que el administrador pueda
---   consultarla y restablecerla. La contraseña de Supabase Auth sigue siendo
---   la fuente de verdad para el login.
 
 -- ---------------------------------------------------------------------------
 -- Columnas nuevas
@@ -57,32 +54,6 @@ create index if not exists profiles_status_created_idx
 
 create index if not exists profiles_email_idx
   on public.profiles (lower(email));
-
--- ---------------------------------------------------------------------------
--- Credenciales cifradas para el panel de administración
--- ---------------------------------------------------------------------------
-create table if not exists public.profile_credentials (
-  profile_id uuid primary key references public.profiles (id) on delete cascade,
-  password_ciphertext text not null,
-  updated_at timestamptz not null default now(),
-  updated_by uuid references public.profiles (id) on delete set null
-);
-
-alter table public.profile_credentials enable row level security;
-
-drop policy if exists "profile_credentials_admin_select" on public.profile_credentials;
-create policy "profile_credentials_admin_select"
-on public.profile_credentials for select
-to authenticated
-using (public.is_admin());
-
--- Solo el service role escribe esta tabla. No hay políticas de INSERT/UPDATE/DELETE
--- para usuarios autenticados.
-
-comment on table public.profile_credentials is
-  'Copia cifrada de la contraseña para el panel de administración. No usar para autenticar.';
-comment on column public.profile_credentials.password_ciphertext is
-  'AES-256-GCM con clave server-only CREDENTIALS_ENCRYPTION_KEY.';
 
 -- ---------------------------------------------------------------------------
 -- is_admin() ahora exige estado aprobado

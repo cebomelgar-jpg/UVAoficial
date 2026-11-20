@@ -4,28 +4,15 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
-  CheckCircle2,
-  Copy,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Loader2,
-  RefreshCw,
   Search,
   ShieldAlert,
   UserCheck,
   UserX,
-  X,
 } from "lucide-react";
-import { Dialog } from "@/components/ui/dialog";
 import { BranchBadge } from "@/components/ui/branch-badge";
 import { ProfileStatusBadge } from "@/components/ui/profile-status-badge";
 import { useToast } from "@/components/providers/toast-provider";
-import {
-  changeProfilePasswordAction,
-  getProfilePasswordAction,
-  updateProfileStatusAction,
-} from "@/lib/actions/profiles";
+import { updateProfileStatusAction } from "@/lib/actions/profiles";
 import { formatDate } from "@/lib/format";
 import type { AdminProfile, Branch, ProfileStatus } from "@/lib/types";
 import { cn, initials, normalizeSearch } from "@/lib/utils";
@@ -40,18 +27,6 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
   { value: "rejected", label: "Rechazados" },
   { value: "suspended", label: "Suspendidos" },
 ];
-
-function generatePassword() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const values = new Uint32Array(12);
-  crypto.getRandomValues(values);
-  const random = Array.from(values, (value) => chars[value % chars.length]).join("");
-  return `Aa1${random}`;
-}
-
-function isStrongPassword(value: string) {
-  return value.length >= 8 && value.length <= 72 && /[A-Za-z]/.test(value) && /[0-9]/.test(value);
-}
 
 export function AdminProfilesManager({
   profiles,
@@ -70,14 +45,7 @@ export function AdminProfilesManager({
   const [status, setStatus] = useState<StatusFilter>("todos");
   const [role, setRole] = useState<RoleFilter>("todos");
   const [branchId, setBranchId] = useState<string>("todas");
-  const [revealed, setRevealed] = useState<Record<string, string>>({});
-  const [loadingPasswordId, setLoadingPasswordId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [passwordTarget, setPasswordTarget] = useState<AdminProfile | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordResult, setPasswordResult] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [savingPassword, setSavingPassword] = useState(false);
 
   const counts = useMemo(
     () => ({
@@ -147,77 +115,6 @@ export function AdminProfilesManager({
     router.refresh();
   }
 
-  async function togglePassword(profile: AdminProfile) {
-    if (revealed[profile.id]) {
-      setRevealed((current) => {
-        const next = { ...current };
-        delete next[profile.id];
-        return next;
-      });
-      return;
-    }
-    if (!profile.has_password) {
-      openPasswordDialog(profile);
-      return;
-    }
-    setLoadingPasswordId(profile.id);
-    const result = await getProfilePasswordAction(profile.id);
-    setLoadingPasswordId(null);
-    if (result.error || !result.password) {
-      toast({ title: "No se pudo mostrar", description: result.error, variant: "error" });
-      return;
-    }
-    setRevealed((current) => ({ ...current, [profile.id]: result.password! }));
-  }
-
-  async function copyPassword(profileId: string, password: string) {
-    try {
-      await navigator.clipboard.writeText(password);
-      toast({ title: "Contraseña copiada" });
-    } catch {
-      toast({ title: "No se pudo copiar", variant: "error" });
-    }
-  }
-
-  function openPasswordDialog(profile: AdminProfile) {
-    setPasswordTarget(profile);
-    setNewPassword(generatePassword());
-    setPasswordResult(null);
-    setPasswordError(null);
-  }
-
-  function closePasswordDialog() {
-    if (savingPassword) return;
-    setPasswordTarget(null);
-    setNewPassword("");
-    setPasswordResult(null);
-    setPasswordError(null);
-  }
-
-  async function submitPassword(event: React.FormEvent) {
-    event.preventDefault();
-    if (!passwordTarget) return;
-    if (!isStrongPassword(newPassword)) {
-      setPasswordError("Usá al menos 8 caracteres, con una letra y un número.");
-      return;
-    }
-    setSavingPassword(true);
-    setPasswordError(null);
-    const result = await changeProfilePasswordAction(passwordTarget.id, newPassword);
-    setSavingPassword(false);
-    if (result.error) {
-      setPasswordError(result.error);
-      if (result.password) setPasswordResult(result.password);
-      return;
-    }
-    if (result.password) {
-      setPasswordResult(result.password);
-      setRevealed((current) => ({ ...current, [passwordTarget.id]: result.password! }));
-    }
-    toast({ title: "Contraseña actualizada", description: passwordTarget.full_name });
-    router.refresh();
-  }
-
   if (!ready) {
     return (
       <div className="card p-6">
@@ -228,12 +125,23 @@ export function AdminProfilesManager({
               La migración de perfiles todavía no está aplicada
             </p>
             <p className="mt-1 text-sm text-muted">
-              Ejecutá{" "}
+              Aplicá en orden las migraciones{" "}
               <code className="rounded bg-ink/5 px-1.5 py-0.5 text-xs">
-                portal/supabase/migrations/202610280001_profile_approval.sql
+                202610260001_multi_branch.sql
+              </code>
+              ,{" "}
+              <code className="rounded bg-ink/5 px-1.5 py-0.5 text-xs">
+                202610270001_patient_documents.sql
+              </code>
+              ,{" "}
+              <code className="rounded bg-ink/5 px-1.5 py-0.5 text-xs">
+                202610280001_profile_approval.sql
+              </code>
+              {" "}y{" "}
+              <code className="rounded bg-ink/5 px-1.5 py-0.5 text-xs">
+                202611200001_profile_approval_hardening.sql
               </code>{" "}
-              en el SQL Editor de Supabase para habilitar la aprobación de
-              cuentas y la gestión de contraseñas.
+              en Supabase para habilitar las sedes y la aprobación de cuentas.
             </p>
           </div>
         </div>
@@ -317,22 +225,19 @@ export function AdminProfilesManager({
               <th>Rol</th>
               <th>Estado</th>
               <th>Registro</th>
-              <th>Contraseña</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-10 text-center text-sm text-muted">
+                <td colSpan={6} className="py-10 text-center text-sm text-muted">
                   No encontramos perfiles con los filtros seleccionados.
                 </td>
               </tr>
             ) : (
               filtered.map((profile) => {
                 const isSelf = profile.id === currentAdminId;
-                const revealedPassword = revealed[profile.id];
-                const isLoadingPassword = loadingPasswordId === profile.id;
                 const isUpdating = updatingId === profile.id;
                 return (
                   <tr key={profile.id}>
@@ -381,48 +286,6 @@ export function AdminProfilesManager({
                       {formatDate(profile.created_at)}
                     </td>
                     <td>
-                      {profile.has_password ? (
-                        <div className="flex items-center gap-1.5">
-                          <code className="max-w-[180px] truncate rounded-lg bg-ink/5 px-2 py-1 text-[11px] font-semibold text-ink">
-                            {revealedPassword ?? "••••••••"}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={() => togglePassword(profile)}
-                            className="btn-ghost btn-sm"
-                            aria-label={revealedPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                          >
-                            {isLoadingPassword ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : revealedPassword ? (
-                              <EyeOff className="size-3.5" />
-                            ) : (
-                              <Eye className="size-3.5" />
-                            )}
-                          </button>
-                          {revealedPassword ? (
-                            <button
-                              type="button"
-                              onClick={() => copyPassword(profile.id, revealedPassword)}
-                              className="btn-ghost btn-sm"
-                              aria-label="Copiar contraseña"
-                            >
-                              <Copy className="size-3.5" />
-                            </button>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => openPasswordDialog(profile)}
-                          className="btn-ghost btn-sm"
-                        >
-                          <KeyRound className="size-3.5" />
-                          Restablecer
-                        </button>
-                      )}
-                    </td>
-                    <td>
                       <div className="flex flex-wrap gap-1.5">
                         {profile.status !== "approved" ? (
                           <button
@@ -457,14 +320,6 @@ export function AdminProfilesManager({
                             Suspender
                           </button>
                         ) : null}
-                        <button
-                          type="button"
-                          onClick={() => openPasswordDialog(profile)}
-                          className="btn-ghost btn-sm"
-                        >
-                          <KeyRound className="size-3.5" />
-                          Contraseña
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -475,126 +330,6 @@ export function AdminProfilesManager({
         </table>
       </div>
 
-      <p className="text-[11px] text-muted">
-        Las contraseñas se guardan cifradas con una clave del servidor. Las cuentas
-        creadas antes de esta función no tienen contraseña visible hasta que las
-        restablezcas desde este panel.
-      </p>
-
-      <Dialog
-        open={Boolean(passwordTarget)}
-        onClose={closePasswordDialog}
-        title="Cambiar contraseña"
-        description={
-          passwordTarget
-            ? `${passwordTarget.full_name} · ${passwordTarget.email ?? "sin email"}`
-            : undefined
-        }
-        size="md"
-      >
-        {passwordResult ? (
-          <div className="space-y-4">
-            {passwordError ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-800"
-              >
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <span>{passwordError}</span>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-                <span>Contraseña actualizada correctamente.</span>
-              </div>
-            )}
-            <div className="rounded-2xl border border-green/25 bg-mint/15 p-4">
-              <p className="text-xs font-semibold text-green-text">Contraseña actual</p>
-              <div className="mt-2 flex items-center gap-2">
-                <code className="flex-1 truncate rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold text-ink">
-                  {passwordResult}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => copyPassword(passwordTarget!.id, passwordResult)}
-                  className="btn-ghost btn-sm"
-                >
-                  <Copy className="size-3.5" />
-                </button>
-              </div>
-              <p className="mt-2 text-[11px] text-muted">
-                Copiala y compartila con el paciente. También queda guardada para
-                consultarla desde la tabla.
-              </p>
-            </div>
-            <button type="button" className="btn-primary w-full" onClick={closePasswordDialog}>
-              Listo
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={submitPassword} className="space-y-4">
-            <div>
-              <label htmlFor="new-password" className="label">
-                Nueva contraseña
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="new-password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  className="input"
-                  minLength={8}
-                  maxLength={72}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setNewPassword(generatePassword())}
-                  className="btn-outline btn-sm"
-                >
-                  <RefreshCw className="size-3.5" />
-                  Generar
-                </button>
-              </div>
-              <p className="mt-1 text-[10px] text-muted">
-                Mínimo 8 caracteres, con al menos una letra y un número.
-              </p>
-            </div>
-            {passwordError ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-800"
-              >
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <span>{passwordError}</span>
-              </div>
-            ) : null}
-            <div className="flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                className="btn-ghost btn-sm"
-                onClick={closePasswordDialog}
-                disabled={savingPassword}
-              >
-                <X className="size-3.5" />
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="btn-primary btn-sm"
-                disabled={savingPassword}
-              >
-                {savingPassword ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <KeyRound className="size-3.5" />
-                )}
-                Guardar contraseña
-              </button>
-            </div>
-          </form>
-        )}
-      </Dialog>
     </div>
   );
 }

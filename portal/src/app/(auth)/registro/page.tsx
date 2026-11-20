@@ -27,7 +27,8 @@ export default async function RegisterPage({
       <h1 className="mt-2 text-3xl text-ink">Creá tu cuenta</h1>
       <p className="mt-2 text-sm leading-relaxed text-muted">
         Necesitamos tus datos de contacto y tu sede para coordinar pedidos y
-        entregas. Podés completar tu perfil más adelante.
+        entregas. Después de confirmar tu email, un administrador debe aprobar
+        tu cuenta para habilitar el acceso al portal.
       </p>
 
       <div className="mt-6">

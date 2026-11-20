@@ -31,9 +31,7 @@ export type Profile = {
   updated_at: string;
 };
 
-export type AdminProfile = Profile & {
-  has_password: boolean;
-};
+export type AdminProfile = Profile;
 
 export type ProductCategory = "flores" | "rosin_hash" | "vapes";
 

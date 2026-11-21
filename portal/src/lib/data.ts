@@ -8,6 +8,7 @@ import type {
   AnalyticsData,
   AnalyticsRange,
   AdminPatientDocument,
+  AdhesionApplication,
   Branch,
   CatalogProduct,
   Order,
@@ -597,6 +598,7 @@ export async function getAdminProfiles(): Promise<{
     const { data: page, error } = await supabase
       .from("profiles")
       .select("*, branch:branches(id, slug, name, city, province)")
+      .neq("role", "applicant")
       .order("created_at", { ascending: false })
       .range(from, from + pageSize - 1);
 
@@ -623,4 +625,45 @@ export async function getAdminProfiles(): Promise<{
   });
 
   return { profiles, ready: true };
+}
+
+export async function getAdminAdhesionApplications(): Promise<
+  Array<{
+    application: AdhesionApplication;
+    profile: Pick<Profile, "id" | "email" | "full_name" | "phone" | "status" | "created_at">;
+  }>
+> {
+  const supabase = await createClient();
+  const { data: applications, error: applicationError } = await supabase
+    .from("adhesion_applications")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(500);
+
+  if (applicationError) {
+    console.error("[data] No pudimos cargar las solicitudes de adhesión.", applicationError.code);
+    throw new Error("No pudimos cargar las solicitudes de adhesión.");
+  }
+  if (!applications?.length) return [];
+
+  const applicantIds = applications.map((application) => application.user_id);
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, phone, status, created_at")
+    .in("id", applicantIds)
+    .eq("role", "applicant");
+
+  if (profilesError) {
+    console.error("[data] No pudimos cargar los perfiles solicitantes.", profilesError.code);
+    throw new Error("No pudimos cargar los perfiles solicitantes.");
+  }
+
+  const profileById = new Map(
+    (profiles ?? []).map((profile) => [profile.id, profile]),
+  );
+  return (applications as AdhesionApplication[])
+    .flatMap((application) => {
+      const profile = profileById.get(application.user_id);
+      return profile ? [{ application, profile }] : [];
+    });
 }

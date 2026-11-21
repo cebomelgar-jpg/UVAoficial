@@ -30,11 +30,24 @@ export async function updateProfileStatusAction(
   const parsedId = profileIdSchema.safeParse(profileId);
   if (!parsedId.success) return { error: "Perfil inválido." };
 
+  const supabase = await createClient();
+  const { data: target, error: targetError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", parsedId.data)
+    .maybeSingle();
+  if (targetError || !target) {
+    if (targetError) console.error("[profiles] No pudimos verificar el perfil.", targetError.code);
+    return { error: "No pudimos verificar el perfil." };
+  }
+  if (target.role === "applicant") {
+    return { error: "Las solicitudes se revisan desde Adhesiones." };
+  }
+
   if (parsedId.data === admin.id && status !== "approved") {
     return { error: "No podés suspender o rechazar tu propia cuenta." };
   }
 
-  const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
     .update({

@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3,
   Boxes,
+  ClipboardCheck,
   ClipboardList,
   FileText,
   LayoutDashboard,
@@ -88,6 +89,7 @@ export function AppShell({
 
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Resumen", icon: <LayoutDashboard className="size-4" />, exact: true },
+    { href: "/admin/adhesiones", label: "Adhesiones", icon: <ClipboardCheck className="size-4" /> },
     { href: "/admin/pedidos", label: "Pedidos", icon: <ClipboardList className="size-4" /> },
     { href: "/admin/perfiles", label: "Perfiles", icon: <Users className="size-4" /> },
     { href: "/admin/archivos", label: "Archivos", icon: <FileText className="size-4" /> },

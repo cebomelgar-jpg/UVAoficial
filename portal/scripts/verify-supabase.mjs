@@ -75,6 +75,7 @@ const tables = [
   ["support_conversations", "id"],
   ["support_chat_messages", "id"],
   ["support_contact_requests", "id"],
+  ["adhesion_applications", "user_id"],
 ];
 for (const [table, column] of tables) {
   const { count, error } = await admin
@@ -144,6 +145,21 @@ if (anonProducts.error?.code === "42501") {
   );
 }
 
+const anonAdhesion = await anon
+  .from("adhesion_applications")
+  .select("user_id")
+  .limit(1);
+if (anonAdhesion.error?.code === "42501") {
+  ok("Privacidad de adhesiones", "el rol anónimo no puede consultar solicitudes");
+} else if (!anonAdhesion.error) {
+  fail("Privacidad de adhesiones", "el rol anónimo puede consultar solicitudes");
+} else {
+  fail(
+    "Privacidad de adhesiones",
+    `${anonAdhesion.error.code ?? ""} ${cleanupMessage(anonAdhesion.error.message)}`,
+  );
+}
+
 const madeToOrderColumn = await admin
   .from("products")
   .select("made_to_order")
@@ -178,6 +194,7 @@ const functions = [
     },
   ],
   ["primary_support_admin_id", {}],
+  ["is_applicant", {}],
   ["open_support_conversation", {}],
   ["reset_support_chat_key", {}],
   [

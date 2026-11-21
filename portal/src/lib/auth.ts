@@ -37,8 +37,27 @@ export async function requireUser() {
 export async function requireProfile() {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login?error=profile");
+  if (profile.role === "applicant") redirect("/adhesion/recorrido");
   const status = profile.status ?? "pending";
   if (status !== "approved") redirect("/pendiente");
+  return profile;
+}
+
+export async function requireApplicant() {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
+
+  if (profile.role !== "applicant") {
+    redirect(
+      profile.role === "admin"
+        ? "/admin"
+        : profile.status === "approved"
+          ? "/portal"
+          : "/pendiente",
+    );
+  }
+
+  if (profile.status === "suspended") redirect("/pendiente");
   return profile;
 }
 

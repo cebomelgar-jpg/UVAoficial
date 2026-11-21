@@ -50,8 +50,8 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
             <Link href="/ayuda/solicitar?motivo=password" className="text-green-text hover:underline">
               ¿Olvidaste tu contraseña?
             </Link>
-            <Link href="/registro" className="text-green-text hover:underline">
-              ¿No tenés cuenta?
+            <Link href="/adhesion/registro" className="text-green-text hover:underline">
+              ¿Querés sumarte?
             </Link>
           </div>
         </div>

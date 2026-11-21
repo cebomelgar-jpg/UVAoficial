@@ -1,6 +1,6 @@
 import type { PatientDocumentType } from "./documents";
 
-export type ProfileRole = "patient" | "admin";
+export type ProfileRole = "patient" | "admin" | "applicant";
 
 export type ProfileStatus = "pending" | "approved" | "rejected" | "suspended";
 
@@ -27,6 +27,24 @@ export type Profile = {
   branch?: Branch | null;
   approved_at: string | null;
   approved_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdhesionApplication = {
+  user_id: string;
+  clinical_reason: string;
+  full_name: string;
+  age: number;
+  dni: string;
+  birth_date: string;
+  address: string;
+  locality: string;
+  email: string;
+  health_insurance: string;
+  phone: string;
+  completed_steps: number[];
+  current_step: number;
   created_at: string;
   updated_at: string;
 };

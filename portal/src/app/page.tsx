@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  Leaf,
+  ClipboardCheck,
   LockKeyhole,
   MessageCircle,
   PackageCheck,
@@ -51,6 +51,9 @@ export default function LandingPage() {
           <a href="#seguridad" className="transition hover:text-ink">
             Privacidad
           </a>
+          <a href="#adhesion" className="transition hover:text-ink">
+            Sumate al club
+          </a>
         </nav>
         <div className="flex items-center gap-2">
           <Link
@@ -59,8 +62,8 @@ export default function LandingPage() {
           >
             Ingresar
           </Link>
-          <Link href="/registro" className="btn-primary btn-sm">
-            Crear cuenta
+          <Link href="/adhesion/registro" className="btn-primary btn-sm">
+            Solicitar adhesión
             <ArrowRight className="size-3.5" />
           </Link>
         </div>
@@ -84,8 +87,8 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/registro" className="btn-primary">
-                Registrarme
+              <Link href="/adhesion/registro" className="btn-primary">
+                Solicitar adhesión
                 <ArrowRight className="size-4" />
               </Link>
               <Link href="/login" className="btn-outline">
@@ -172,21 +175,21 @@ export default function LandingPage() {
             {[
               {
                 number: "01",
-                title: "Creá tu cuenta",
-                text: "Registrate con tus datos de contacto. El acceso es personal y requiere confirmar tu email.",
+                title: "Iniciá tu adhesión",
+                text: "Registrate con tu email y completá los seis pasos guiados.",
                 icon: <LockKeyhole className="size-4" />,
               },
               {
                 number: "02",
-                title: "Elegí tus productos",
-                text: "Consultá fichas, cannabinoides, aromas y stock. Armá el carrito a tu ritmo.",
-                icon: <Leaf className="size-4" />,
+                title: "Te acompañamos",
+                text: "Coordiná la entrevista y completá los trámites con el equipo.",
+                icon: <MessageCircle className="size-4" />,
               },
               {
                 number: "03",
-                title: "Confirmá el pedido",
-                text: "Elegí efectivo o transferencia y coordiná la entrega. El equipo valida stock y pago.",
-                icon: <PackageCheck className="size-4" />,
+                title: "Acceso al portal",
+                text: "Cuando finalice el proceso, administración revisará y habilitará tu cuenta de paciente.",
+                icon: <ClipboardCheck className="size-4" />,
               },
             ].map((item) => (
               <article key={item.number} className="card p-6">
@@ -314,6 +317,36 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        <section
+          id="adhesion"
+          className="mx-auto w-full max-w-7xl scroll-mt-8 px-5 pb-20 sm:px-8"
+        >
+          <div className="relative overflow-hidden rounded-[2rem] border border-ink/10 bg-ink px-6 py-10 text-paper shadow-soft sm:px-10 sm:py-14">
+            <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-mint/10 blur-3xl" />
+            <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div className="max-w-3xl">
+                <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-mint">
+                  <ClipboardCheck className="size-3.5" />
+                  Nuevas solicitudes
+                </p>
+                <h2 className="mt-3 text-3xl leading-tight text-paper sm:text-4xl">
+                  ¿Querés sumarte a la asociación?
+                </h2>
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-paper/75">
+                  Empezá acá tu solicitud de adhesión. Vas a encontrar una guía paso a paso para preparar tus datos, Mi Argentina, REPROCANN y los formularios del club, con acompañamiento del equipo.
+                </p>
+                <p className="mt-3 text-xs leading-relaxed text-paper/55">
+                  El registro de solicitante no habilita el portal de pacientes. La solicitud es para mayores de 18 años y el acceso se habilita únicamente tras completar el proceso y la revisión administrativa.
+                </p>
+              </div>
+              <Link href="/adhesion/registro" className="btn-mint justify-center">
+                Comenzar solicitud
+                <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="relative z-10 border-t border-ink/10 bg-white/50">
@@ -331,8 +364,8 @@ export default function LandingPage() {
             >
               Sitio principal
             </a>
-            <Link href="/registro" className="transition hover:text-ink">
-              Crear cuenta
+            <Link href="/adhesion/registro" className="transition hover:text-ink">
+              Solicitar adhesión
             </Link>
             <Link href="/ayuda/solicitar" className="transition hover:text-ink">
               Contacto

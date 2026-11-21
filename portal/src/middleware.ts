@@ -1,7 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession, type SessionUpdate } from "@/lib/supabase/middleware";
 
-const PROTECTED_PREFIXES = ["/portal", "/admin"];
+const PROTECTED_PREFIXES = [
+  "/portal",
+  "/admin",
+  "/adhesion/recorrido",
+  "/adhesion/ayuda",
+  "/adhesion/declaracion",
+];
 const PRIVATE_RESPONSE_HEADERS = ["cache-control", "expires", "pragma"];
 
 function isPathWithin(pathname: string, prefix: string) {
@@ -103,6 +109,10 @@ async function handleAuthenticatedRequest(
   pathname: string,
 ) {
   const { supabase, response, user } = session;
+  const isAdhesionJourney =
+    isPathWithin(pathname, "/adhesion/recorrido") ||
+    isPathWithin(pathname, "/adhesion/ayuda") ||
+    isPathWithin(pathname, "/adhesion/declaracion");
 
   if (!user) {
     if (isProtectedPath(pathname)) {
@@ -117,14 +127,16 @@ async function handleAuthenticatedRequest(
     pathname === "/login" &&
     request.nextUrl.searchParams.get("error") === "profile";
 
-  if (!profileError && (pathname === "/login" || pathname === "/registro")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/portal";
-    url.search = "";
-    return redirectWithSession(url, response);
-  }
-
-  if (isPathWithin(pathname, "/admin") || isPathWithin(pathname, "/portal")) {
+  if (
+    !profileError &&
+    (pathname === "/login" ||
+      pathname === "/registro" ||
+      pathname === "/adhesion/registro" ||
+      pathname === "/pendiente" ||
+      isAdhesionJourney ||
+      isPathWithin(pathname, "/admin") ||
+      isPathWithin(pathname, "/portal"))
+  ) {
     if (!supabase) {
       return redirectToLogin(request, pathname, "unavailable", response);
     }
@@ -142,19 +154,78 @@ async function handleAuthenticatedRequest(
     const role = (profile as { role?: string } | null)?.role;
     const status = (profile as { status?: string } | null)?.status ?? "pending";
 
-    if (isPathWithin(pathname, "/admin")) {
-      if (role !== "admin" || status !== "approved") {
-        const url = request.nextUrl.clone();
-        url.pathname = role === "admin" ? "/pendiente" : "/portal";
-        url.search = "";
-        if (role !== "admin") url.searchParams.set("error", "forbidden");
-        return redirectWithSession(url, response);
+    if (error || !profile) {
+      if (isProtectedPath(pathname)) {
+        return redirectToLogin(request, pathname, undefined, response);
       }
-    } else if (status !== "approved") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/pendiente";
+      return response;
+    }
+
+    const url = request.nextUrl.clone();
+    const profileHome =
+      role === "applicant"
+        ? status === "suspended"
+          ? "/pendiente"
+          : "/adhesion/recorrido"
+        : role === "admin"
+          ? status === "approved"
+            ? "/admin"
+            : "/pendiente"
+          : status === "approved"
+            ? "/portal"
+            : "/pendiente";
+
+    if (
+      pathname === "/login" ||
+      pathname === "/registro" ||
+      pathname === "/adhesion/registro"
+    ) {
+      if (profileError && pathname === "/login") return response;
+      url.pathname = profileHome;
       url.search = "";
       return redirectWithSession(url, response);
+    }
+
+    if (pathname === "/pendiente") {
+      if (role === "applicant" && status !== "suspended") {
+        url.pathname = "/adhesion/recorrido";
+        url.search = "";
+        return redirectWithSession(url, response);
+      }
+      if (status === "approved") {
+        url.pathname = profileHome;
+        url.search = "";
+        return redirectWithSession(url, response);
+      }
+    }
+
+    if (isAdhesionJourney) {
+      if (role !== "applicant" || status === "suspended") {
+        url.pathname = profileHome;
+        url.search = "";
+        return redirectWithSession(url, response);
+      }
+      response.headers.set("Cache-Control", "private, no-store");
+    }
+
+    if (isPathWithin(pathname, "/admin")) {
+      if (role !== "admin" || status !== "approved") {
+        url.pathname = profileHome;
+        url.search = "";
+        if (role !== "applicant" && role !== "admin") {
+          url.searchParams.set("error", "forbidden");
+        }
+        return redirectWithSession(url, response);
+      }
+    } else if (isPathWithin(pathname, "/portal") && status !== "approved") {
+      url.pathname =
+        role === "applicant" ? profileHome : "/pendiente";
+      url.search = "";
+      return redirectWithSession(url, response);
+    }
+
+    if (isProtectedPath(pathname)) {
+      response.headers.set("Cache-Control", "private, no-store");
     }
   }
 

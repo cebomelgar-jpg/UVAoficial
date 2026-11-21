@@ -50,6 +50,13 @@ export default function LegalPage() {
                 incluidas tus necesidades terapéuticas.
               </p>
               <p className="mt-2">
+                Si iniciás una solicitud de adhesión, también guardamos los
+                datos personales que ingreses (DNI, fecha de nacimiento,
+                domicilio, localidad, obra social y teléfono), el motivo clínico
+                y el avance de los pasos. Se usan exclusivamente para
+                acompañar y revisar la solicitud.
+              </p>
+              <p className="mt-2">
                 No solicitamos información médica más allá de lo necesario para
                 coordinar el pedido. Evitá incluir datos sensibles que no sean
                 relevantes.
@@ -63,6 +70,7 @@ export default function LegalPage() {
                 <li>Gestionar el catálogo, los pedidos y las entregas.</li>
                 <li>Coordinar el pago y comunicarnos con vos.</li>
                 <li>Controlar stock y emitir reportes internos agregados.</li>
+                <li>Acompañar y revisar las solicitudes de adhesión al club.</li>
               </ul>
               <p className="mt-2">
                 No vendemos ni cedemos tus datos a terceros ajenos a la
@@ -79,9 +87,15 @@ export default function LegalPage() {
                 La base de datos aplica reglas de seguridad a nivel de fila.
               </p>
               <p className="mt-2">
+                Los datos de adhesión, incluidos el DNI y el motivo clínico,
+                solo pueden ser consultados por la persona solicitante y los
+                administradores autorizados. No son visibles para otros
+                pacientes ni para visitantes.
+              </p>
+              <p className="mt-2">
                 Los chats de ayuda son cifrados de extremo a extremo desde el
                 navegador: el servidor almacena mensajes cifrados y no conserva
-                una copia de lectura. Solo la cuenta del paciente y el
+                una copia de lectura. Solo la cuenta participante y el
                 dispositivo autorizado de administración pueden descifrarlos.
                 Las claves privadas se conservan en el almacenamiento local del
                 navegador y no se pueden recuperar si se borran sus datos.
@@ -98,6 +112,12 @@ export default function LegalPage() {
                 desde la sección de ayuda del portal. Algunos registros
                 contables o de seguridad pueden conservarse por un plazo
                 razonable.
+              </p>
+              <p className="mt-2">
+                Podés solicitar acceso, rectificación o eliminación de tus
+                datos de adhesión desde el chat privado del recorrido. Los
+                documentos completados se imprimen desde tu dispositivo y no
+                se cargan al portal.
               </p>
             </section>
 
@@ -151,8 +171,8 @@ export default function LegalPage() {
           </div>
 
           <div className="mt-10 flex flex-wrap gap-2 border-t border-ink/10 pt-6">
-            <Link href="/registro" className="btn-primary btn-sm">
-              Crear cuenta
+            <Link href="/adhesion/registro" className="btn-primary btn-sm">
+              Solicitar adhesión
             </Link>
             <Link href="/login" className="btn-outline btn-sm">
               Ingresar

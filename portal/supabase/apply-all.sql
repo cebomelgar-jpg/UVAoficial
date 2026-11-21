@@ -1,4 +1,4 @@
--- Un Viaje Astral · Portal de pacientes
+-- Un Viaje Astral ? Portal de pacientes
 -- Bootstrap manual: ejecuta todas las migraciones en orden.
 -- Archivo generado desde supabase/migrations/. No editar a mano.
 
@@ -124,6 +124,7 @@ comment on table public.profiles is 'Perfiles de pacientes y administradores del
 comment on table public.products is 'Catálogo privado de flores secas, rosin hash y vapes.';
 comment on table public.orders is 'Pedidos realizados por pacientes registrados.';
 comment on table public.order_items is 'Detalle histórico de productos por pedido.';
+
 
 -- ===========================================================================
 -- 202610250002_rls.sql
@@ -262,6 +263,7 @@ create policy "order_items_select_own_or_admin"
 on public.order_items for select
 to authenticated
 using (public.can_access_order(order_id));
+
 
 -- ===========================================================================
 -- 202610250003_functions.sql
@@ -655,6 +657,7 @@ grant execute on function public.create_order(jsonb, text, text, text, text, tex
 grant execute on function public.cancel_order(uuid) to authenticated;
 grant execute on function public.admin_update_order_status(uuid, text, text) to authenticated;
 
+
 -- ===========================================================================
 -- 202610250004_storage.sql
 -- ===========================================================================
@@ -698,6 +701,7 @@ on storage.objects for delete
 to authenticated
 using (bucket_id = 'product-images' and public.is_admin());
 
+
 -- ===========================================================================
 -- 202610250005_realtime.sql
 -- ===========================================================================
@@ -729,6 +733,7 @@ begin
   end if;
 end
 $$;
+
 
 -- ===========================================================================
 -- 202610250006_seed_catalog.sql
@@ -917,6 +922,7 @@ end
 $$;
 
 drop table if exists _seed_catalog;
+
 
 -- ===========================================================================
 -- 202610260001_multi_branch.sql
@@ -1493,6 +1499,7 @@ on public.order_items for select
 to authenticated
 using (public.can_access_order(order_id));
 
+
 -- ===========================================================================
 -- 202610270001_patient_documents.sql
 -- ===========================================================================
@@ -1643,9 +1650,6 @@ using (
 --
 -- * Agrega estado de aprobación, email y trazabilidad al perfil.
 -- * Los registros nuevos quedan pendientes hasta que un administrador los habilite.
--- * Guarda una copia cifrada de la contraseña para que el administrador pueda
---   consultarla y restablecerla. La contraseña de Supabase Auth sigue siendo
---   la fuente de verdad para el login.
 
 -- ---------------------------------------------------------------------------
 -- Columnas nuevas
@@ -1973,9 +1977,12 @@ create trigger orders_require_approved
 before insert on public.orders
 for each row execute function public.enforce_approved_order();
 
--- ---------------------------------------------------------------------------
--- Endurecimiento de aprobación y eliminación de copias de contraseñas
--- ---------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 202611200001_profile_approval_hardening.sql
+-- ===========================================================================
+-- Remove la copia reversible de contraseñas y conserva el registro pendiente
+-- como estado predeterminado para altas nuevas.
 alter table public.profiles
   alter column status set default 'pending';
 
@@ -1988,9 +1995,11 @@ alter table public.profiles
 
 drop table if exists public.profile_credentials;
 
--- ---------------------------------------------------------------------------
--- Publicación Realtime para el panel administrativo de perfiles
--- ---------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 202611200002_profiles_realtime.sql
+-- ===========================================================================
+-- Publica cambios de perfiles para actualizar en vivo el panel administrativo.
 do $$
 begin
   if not exists (
@@ -2011,7 +2020,9 @@ end
 $$;
 
 
--- Chat E2E y solicitudes internas con retención limitada
+-- ===========================================================================
+-- 202611200003_secure_support_chat.sql
+-- ===========================================================================
 -- E2E encrypted, short-lived patient/admin conversations and internal requests.
 
 create table if not exists public.support_chat_keys (
@@ -2426,10 +2437,12 @@ begin
 end
 $$;
 
+
 -- ===========================================================================
 -- 202611200004_secure_patient_document_uploads.sql
 -- ===========================================================================
--- Restrict document writes to the validated server action.
+-- Limit patient-document writes to the validated server action. The service
+-- role performs writes only after the upload's MIME signature has been checked.
 
 update storage.buckets
 set public = false,
@@ -2462,12 +2475,51 @@ using (
   )
 );
 
+-- Uploads, replacement, and deletion are mediated by server actions. Without
+-- these policies, authenticated clients cannot bypass the signature check.
 drop policy if exists "patient_documents_storage_insert" on storage.objects;
 drop policy if exists "patient_documents_storage_update" on storage.objects;
 drop policy if exists "patient_documents_storage_delete" on storage.objects;
 
+
+-- ===========================================================================
+-- 202611200005_admin_delete_support_conversation.sql
+-- ===========================================================================
+create or replace function public.admin_delete_support_conversation(
+  p_conversation_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_approved() or not public.is_admin() then
+    raise exception 'Se requieren permisos de administrador.';
+  end if;
+
+  delete from public.support_conversations
+  where id = p_conversation_id
+    and admin_id = auth.uid();
+
+  if not found then
+    raise exception 'Conversación no encontrada o no autorizada.';
+  end if;
+end;
+$$;
+
+revoke all on function public.admin_delete_support_conversation(uuid)
+  from public, anon;
+grant execute on function public.admin_delete_support_conversation(uuid)
+  to authenticated;
+
+
+-- ===========================================================================
+-- 202611210001_patient_catalog_privacy_and_derivatives.sql
+-- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
--- 202611210001 · Privacidad del catálogo y productos derivados
+-- Oculta cantidades de stock, agrega productos derivados y la modalidad por encargo.
+
 alter table public.products
   add column if not exists made_to_order boolean not null default false;
 
@@ -2486,6 +2538,7 @@ alter table public.order_items
     or category in ('flores', 'rosin_hash', 'vapes', 'derivados')
   );
 
+-- Patients can query catalog metadata but cannot read the exact inventory column.
 revoke select on public.products from public, anon, authenticated;
 revoke select (stock) on public.products from public, anon, authenticated;
 grant select (
@@ -2681,5 +2734,364 @@ revoke all on function public.prevent_made_to_order_order_item() from public;
 grant execute on function public.catalog_products(uuid, text, boolean) to authenticated;
 grant execute on function public.admin_list_products(uuid, uuid) to authenticated;
 grant execute on function public.admin_low_stock_products(uuid) to authenticated;
+
+
+-- ===========================================================================
+-- 202611220001_admissions.sql
+-- ===========================================================================
+-- Solicitudes de adhesión: una cuenta pública nueva nunca obtiene rol de paciente.
+alter table public.profiles
+  drop constraint if exists profiles_role_check;
+
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('patient', 'admin', 'applicant'));
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (
+    id,
+    full_name,
+    phone,
+    role,
+    branch_id,
+    email,
+    status
+  )
+  values (
+    new.id,
+    coalesce(
+      nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+      'Solicitante'
+    ),
+    nullif(trim(new.raw_user_meta_data ->> 'phone'), ''),
+    'applicant',
+    null,
+    new.email,
+    'pending'
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+create or replace function public.is_approved()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('patient', 'admin')
+      and status = 'approved'
+  );
+$$;
+
+revoke all on function public.is_approved() from public;
+grant execute on function public.is_approved() to authenticated;
+
+create table if not exists public.adhesion_applications (
+  user_id uuid primary key references public.profiles (id) on delete cascade,
+  clinical_reason text not null check (length(trim(clinical_reason)) between 2 and 2000),
+  full_name text not null check (length(trim(full_name)) between 2 and 120),
+  age smallint not null check (age between 18 and 120),
+  dni text not null check (dni ~ '^[0-9]{7,10}$'),
+  birth_date date not null,
+  address text not null check (length(trim(address)) between 3 and 200),
+  locality text not null check (length(trim(locality)) between 2 and 120),
+  email text not null check (length(email) between 6 and 254),
+  health_insurance text not null check (length(trim(health_insurance)) between 2 and 120),
+  phone text not null check (length(trim(phone)) between 6 and 30),
+  completed_steps integer[] not null default '{}'
+    check (cardinality(completed_steps) <= 6)
+    check (completed_steps <@ array[1, 2, 3, 4, 5, 6]::integer[]),
+  current_step smallint not null default 1 check (current_step between 1 and 6),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists adhesion_applications_updated_idx
+  on public.adhesion_applications (updated_at desc);
+
+drop trigger if exists adhesion_applications_set_updated_at on public.adhesion_applications;
+create trigger adhesion_applications_set_updated_at
+before update on public.adhesion_applications
+for each row execute function public.set_updated_at();
+
+alter table public.adhesion_applications enable row level security;
+
+create or replace function public.is_applicant()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'applicant'
+      and status in ('pending', 'rejected')
+  );
+$$;
+
+revoke all on function public.is_applicant() from public;
+grant execute on function public.is_applicant() to authenticated;
+
+drop policy if exists "adhesion_applications_select_owner_or_admin"
+  on public.adhesion_applications;
+create policy "adhesion_applications_select_owner_or_admin"
+  on public.adhesion_applications for select to authenticated
+  using (user_id = auth.uid() and public.is_applicant() or public.is_admin());
+
+drop policy if exists "adhesion_applications_insert_owner"
+  on public.adhesion_applications;
+create policy "adhesion_applications_insert_owner"
+  on public.adhesion_applications for insert to authenticated
+  with check (user_id = auth.uid() and public.is_applicant());
+
+drop policy if exists "adhesion_applications_update_owner_or_admin"
+  on public.adhesion_applications;
+create policy "adhesion_applications_update_owner_or_admin"
+  on public.adhesion_applications for update to authenticated
+  using (user_id = auth.uid() and public.is_applicant() or public.is_admin())
+  with check (user_id = auth.uid() and public.is_applicant() or public.is_admin());
+
+revoke all on public.adhesion_applications from anon, public;
+grant select, insert, update on public.adhesion_applications to authenticated;
+
+
+-- ===========================================================================
+-- 202611220002_applicant_support_chat.sql
+-- ===========================================================================
+-- Permite que solicitantes autenticados usen el chat cifrado con administración,
+-- sin habilitar el resto de los recursos reservados a pacientes aprobados.
+
+drop policy if exists "support_chat_keys_select" on public.support_chat_keys;
+create policy "support_chat_keys_select"
+  on public.support_chat_keys for select to authenticated
+  using (
+    (public.is_approved() or public.is_applicant())
+    and (
+      user_id = auth.uid()
+      or public.is_admin()
+      or user_id = public.primary_support_admin_id()
+    )
+  );
+
+drop policy if exists "support_chat_keys_insert_own" on public.support_chat_keys;
+create policy "support_chat_keys_insert_own"
+  on public.support_chat_keys for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and (public.is_approved() or public.is_applicant())
+  );
+
+drop policy if exists "support_conversations_select_participant"
+  on public.support_conversations;
+create policy "support_conversations_select_participant"
+  on public.support_conversations for select to authenticated
+  using (
+    (public.is_approved() or public.is_applicant())
+    and expires_at > now()
+    and (
+      patient_id = auth.uid()
+      or (admin_id = auth.uid() and public.is_admin())
+    )
+  );
+
+drop policy if exists "support_chat_messages_select_participant"
+  on public.support_chat_messages;
+create policy "support_chat_messages_select_participant"
+  on public.support_chat_messages for select to authenticated
+  using (
+    (public.is_approved() or public.is_applicant())
+    and exists (
+      select 1
+      from public.support_conversations c
+      where c.id = conversation_id
+        and c.expires_at > now()
+        and (
+          c.patient_id = auth.uid()
+          or (c.admin_id = auth.uid() and public.is_admin())
+        )
+    )
+  );
+
+drop policy if exists "support_chat_messages_insert_participant"
+  on public.support_chat_messages;
+create policy "support_chat_messages_insert_participant"
+  on public.support_chat_messages for insert to authenticated
+  with check (
+    (public.is_approved() or public.is_applicant())
+    and sender_id = auth.uid()
+    and exists (
+      select 1
+      from public.support_conversations c
+      where c.id = conversation_id
+        and c.expires_at > now()
+        and (
+          c.patient_id = auth.uid()
+          or (c.admin_id = auth.uid() and public.is_admin())
+        )
+    )
+  );
+
+create or replace function public.open_support_conversation()
+returns table (
+  id uuid,
+  patient_id uuid,
+  admin_id uuid,
+  created_at timestamptz,
+  last_activity_at timestamptz,
+  expires_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_patient_id uuid := auth.uid();
+  v_admin_id uuid;
+  v_conversation public.support_conversations%rowtype;
+begin
+  if v_patient_id is null or not (
+    public.is_applicant()
+    or exists (
+      select 1 from public.profiles
+      where profiles.id = v_patient_id
+        and profiles.role = 'patient'
+        and profiles.status = 'approved'
+    )
+  ) then
+    raise exception 'Solo solicitantes y pacientes habilitados pueden abrir un chat.';
+  end if;
+
+  perform 1 from public.profiles where profiles.id = v_patient_id for update;
+  v_admin_id := public.primary_support_admin_id();
+
+  if v_admin_id is null or not exists (
+    select 1 from public.support_chat_keys where user_id = v_admin_id
+  ) then
+    raise exception 'El chat todavía no está habilitado por administración.';
+  end if;
+
+  select *
+    into v_conversation
+    from public.support_conversations c
+    where c.patient_id = v_patient_id
+      and c.expires_at > now()
+    order by c.created_at desc
+    limit 1;
+
+  if found then
+    return query
+      select v_conversation.id, v_conversation.patient_id, v_conversation.admin_id,
+        v_conversation.created_at, v_conversation.last_activity_at, v_conversation.expires_at;
+    return;
+  end if;
+
+  delete from public.support_conversations c
+  where c.patient_id = v_patient_id
+    and c.expires_at <= now();
+
+  insert into public.support_conversations (patient_id, admin_id)
+  values (v_patient_id, v_admin_id)
+  returning * into v_conversation;
+
+  return query
+    select v_conversation.id, v_conversation.patient_id, v_conversation.admin_id,
+      v_conversation.created_at, v_conversation.last_activity_at, v_conversation.expires_at;
+end;
+$$;
+
+revoke all on function public.open_support_conversation() from public, anon;
+grant execute on function public.open_support_conversation() to authenticated;
+
+create or replace function public.reset_support_chat_key()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null or not (
+    public.is_applicant()
+    or exists (
+      select 1 from public.profiles
+      where id = v_user_id and status = 'approved'
+    )
+  ) then
+    raise exception 'Se requiere una cuenta habilitada.';
+  end if;
+
+  if exists (
+    select 1 from public.support_conversations c
+    where c.expires_at > now()
+      and (c.patient_id = v_user_id or c.admin_id = v_user_id)
+  ) then
+    raise exception 'Esperá a que venza la conversación activa antes de restablecer la clave.';
+  end if;
+
+  delete from public.support_chat_keys where user_id = v_user_id;
+end;
+$$;
+
+revoke all on function public.reset_support_chat_key() from public, anon;
+grant execute on function public.reset_support_chat_key() to authenticated;
+
+create or replace function public.record_support_chat_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not (public.is_approved() or public.is_applicant())
+     or new.sender_id <> auth.uid()
+     or new.ciphertext !~ '^[A-Za-z0-9+/]+={0,2}$'
+     or new.iv !~ '^[A-Za-z0-9+/]{16}$' then
+    raise exception 'Mensaje cifrado inválido.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(new.conversation_id::text, 0));
+  if (
+    select count(*)
+    from public.support_chat_messages m
+    where m.conversation_id = new.conversation_id
+      and m.sender_id = new.sender_id
+      and m.created_at > now() - interval '1 minute'
+  ) >= 30 then
+    raise exception 'Alcanzaste el límite temporal de mensajes. Esperá un minuto.';
+  end if;
+
+  update public.support_conversations c
+  set last_activity_at = now(),
+      expires_at = now() + interval '60 minutes'
+  where c.id = new.conversation_id
+    and c.expires_at > now()
+    and (c.patient_id = new.sender_id or c.admin_id = new.sender_id);
+
+  if not found then
+    raise exception 'El chat venció o no pertenece a esta cuenta.';
+  end if;
+
+  new.created_at := now();
+  return new;
+end;
+$$;
 
 commit;

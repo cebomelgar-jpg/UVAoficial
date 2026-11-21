@@ -19,6 +19,7 @@ export default async function PendingPage() {
   if (!user) redirect("/login");
 
   const profile = await getCurrentProfile();
+  if (profile?.role === "applicant") redirect("/adhesion/recorrido");
   const status = profile?.status ?? "pending";
 
   if (status === "approved") {

@@ -282,13 +282,42 @@
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+
   body {
     background: white !important;
     color: #111 !important;
   }
 
-  .no-print {
+  .no-print,
+  .print-hide {
     display: none !important;
+  }
+
+  .print-document {
+    width: 100%;
+    max-width: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
+  }
+
+  .print-underline {
+    border: 0 !important;
+    border-bottom: 1px solid black !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: black !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 2px !important;
+    font: inherit;
   }
 
   .card,

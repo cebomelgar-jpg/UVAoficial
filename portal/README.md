@@ -125,6 +125,8 @@ Las migraciones están en `supabase/migrations/` y deben ejecutarse **en orden**
 13. `202611200004_secure_patient_document_uploads.sql` — limita las escrituras del bucket privado a acciones de servidor con validación de firma de archivo y solo permite leer objetos asociados a documentos registrados.
 14. `202611200005_admin_delete_support_conversation.sql` — permite que el administrador elimine la conversación privada de soporte.
 15. `202611210001_patient_catalog_privacy_and_derivatives.sql` — oculta las cantidades de stock al paciente, agrega derivados y permite marcar productos por sede como “Por encargo”.
+16. `202611220001_admissions.sql` — crea el rol solicitante, el recorrido privado de adhesión y su tabla con RLS; los registros públicos ya no reciben acceso de paciente.
+17. `202611220002_applicant_support_chat.sql` — permite que solicitantes usen el chat cifrado sin habilitar otros recursos del portal.
 
 **Opción A: SQL Editor**
 
@@ -132,11 +134,11 @@ Abrí el SQL Editor de Supabase y ejecutá el contenido completo de cada archivo
 
 Para una aplicación nueva, también podés abrir `supabase/apply-all.sql`, copiar todo su contenido y ejecutarlo. Incluye todas las migraciones en orden dentro de una transacción; si una sentencia falla, no se aplica ningún cambio.
 
-Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql`, `202611200001_profile_approval_hardening.sql`, `202611200002_profiles_realtime.sql`, `202611200003_secure_support_chat.sql` y `202611200004_secure_patient_document_uploads.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación. Para una base que ya llegó hasta soporte, aplicá también `202611200005_admin_delete_support_conversation.sql` y `202611210001_patient_catalog_privacy_and_derivatives.sql`.
+Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten. Para una base que ya tiene el portal de pacientes y las migraciones hasta catálogo privado, aplicá también `202611220001_admissions.sql` y luego `202611220002_applicant_support_chat.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes.
 
 La migración de chat habilita `pg_cron` para borrar mensajes cifrados vencidos cada minuto. El chat usa ECDH P-256 y AES-GCM en el navegador; el servidor solo almacena texto cifrado. Cada cuenta vincula su única clave privada al almacenamiento local del navegador y no se sincroniza ni se puede recuperar; para descifrar, usá siempre ese navegador y no borres sus datos. El chat y el contenido local se limpian después de 60 minutos sin mensajes. Las solicitudes sin sesión guardan solo nombre, email, teléfono y motivo, no texto libre ni contraseñas; aparecen en tiempo real en el panel y se eliminan a los 7 días.
 
-Verificá la conexión y las migraciones aplicadas con `npm run verify:supabase` desde `portal/`. No habilites registros en producción hasta que el verificador confirme las columnas `profiles.status`/`profiles.email`, las sedes y el bucket privado de documentación.
+Verificá la conexión y las migraciones aplicadas con `npm run verify:supabase` desde `portal/`. No habilites registros en producción hasta que el verificador confirme las columnas `profiles.status`/`profiles.email`, las sedes, la tabla privada de solicitudes y el bucket privado de documentación.
 
 **Opción B: Supabase CLI**
 
@@ -180,7 +182,7 @@ En *Authentication → Providers → Email*:
 - En producción se recomienda mantener la confirmación de email activada.
 - Revisá la plantilla de confirmación si personalizás el enlace. El portal soporta `/auth/callback` (intercambio de código) y `/auth/confirm` (verificación por `token_hash`).
 
-El registro público crea únicamente cuentas con rol `patient`. El rol `admin` solo se asigna con el script de bootstrap o desde el SQL Editor con la service role.
+El registro público crea cuentas con rol `applicant`, sin sede y sin acceso al portal de pacientes. Solo el administrador puede convertir una solicitud completa en un perfil `patient`, asignándole una sede. El rol `admin` solo se asigna con el script de bootstrap o desde el SQL Editor con la service role.
 
 ### 4. Crear el administrador inicial
 

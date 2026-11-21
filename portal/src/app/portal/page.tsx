@@ -9,7 +9,6 @@ import {
   Package,
   ShoppingBag,
   Sparkles,
-  Wallet,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -68,7 +67,7 @@ export default async function PortalDashboardPage({
         </div>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
           label="Pedidos realizados"
           value={String(overview.totalOrders)}
@@ -88,13 +87,6 @@ export default async function PortalDashboardPage({
           hint="Pedidos completados"
           icon={<CalendarCheck2 className="size-4" />}
           tone="mint"
-        />
-        <MetricCard
-          label="Total invertido"
-          value={formatARS(overview.totalSpent)}
-          hint="Sin contar cancelados"
-          icon={<Wallet className="size-4" />}
-          tone="dark"
         />
       </section>
 

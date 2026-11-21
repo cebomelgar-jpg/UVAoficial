@@ -94,6 +94,9 @@ export default function LandingPage() {
               <Link href="/login" className="btn-outline">
                 Ya tengo cuenta
               </Link>
+              <Link href="/registro" className="btn-ghost">
+                Ya soy paciente
+              </Link>
             </div>
 
             <div className="mt-8 flex flex-wrap gap-2">
@@ -343,6 +346,9 @@ export default function LandingPage() {
               <Link href="/adhesion/registro" className="btn-mint justify-center">
                 Comenzar solicitud
                 <ArrowRight className="size-4" />
+              </Link>
+              <Link href="/registro" className="btn-outline justify-center">
+                Ya soy paciente, quiero crear mi cuenta
               </Link>
             </div>
           </div>

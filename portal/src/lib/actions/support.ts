@@ -7,10 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { ActionState } from "@/lib/types";
 
 const requestSchema = z.object({
-  requestType: z.enum(["password", "privacy", "general"]),
+  requestType: z.enum(["password", "privacy", "general", "problem", "product"]),
   fullName: z.string().trim().min(2).max(80),
   email: z.string().trim().email().max(254),
   phone: z.string().trim().min(6).max(30).regex(/^[+0-9() .-]+$/),
+  details: z.string().trim().max(2000).optional(),
 });
 
 const requestIdSchema = z.string().uuid();
@@ -24,6 +25,7 @@ export async function submitSupportContactRequestAction(
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     phone: formData.get("phone"),
+    details: formData.get("details") || undefined,
   });
 
   if (!parsed.success) {
@@ -37,6 +39,7 @@ export async function submitSupportContactRequestAction(
       p_full_name: parsed.data.fullName,
       p_email: parsed.data.email,
       p_phone: parsed.data.phone,
+      p_details: parsed.data.details ?? null,
     });
 
     if (error) {

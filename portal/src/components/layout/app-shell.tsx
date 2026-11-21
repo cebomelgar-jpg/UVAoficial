@@ -45,7 +45,7 @@ export function AppShell({
 }: {
   profile: Profile;
   mode: "portal" | "admin";
-  supportCounts?: { chats: number; requests: number };
+  supportCounts?: { chats: number; requests: number; adhesions: number };
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -89,7 +89,12 @@ export function AppShell({
 
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Resumen", icon: <LayoutDashboard className="size-4" />, exact: true },
-    { href: "/admin/adhesiones", label: "Adhesiones", icon: <ClipboardCheck className="size-4" /> },
+    {
+      href: "/admin/adhesiones",
+      label: "Adhesiones",
+      icon: <ClipboardCheck className="size-4" />,
+      badge: supportCounts?.adhesions,
+    },
     { href: "/admin/pedidos", label: "Pedidos", icon: <ClipboardList className="size-4" /> },
     { href: "/admin/perfiles", label: "Perfiles", icon: <Users className="size-4" /> },
     { href: "/admin/archivos", label: "Archivos", icon: <FileText className="size-4" /> },

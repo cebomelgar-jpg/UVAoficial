@@ -16,7 +16,7 @@ export default async function AdminSupportRequestsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("support_contact_requests")
-    .select("id, request_type, full_name, email, phone, status, created_at")
+    .select("id, request_type, full_name, email, phone, details, status, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {

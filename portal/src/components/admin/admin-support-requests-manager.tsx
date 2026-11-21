@@ -15,6 +15,8 @@ const requestLabels = {
   password: "Ayuda para ingresar",
   privacy: "Datos y privacidad",
   general: "Consulta general",
+  problem: "Problema o inconveniente",
+  product: "Producto especial",
 } as const;
 
 export function AdminSupportRequestsManager({
@@ -115,6 +117,12 @@ export function AdminSupportRequestsManager({
                   buscá el perfil por email y restablecé el acceso desde el panel.
                   Nunca pidas ni envíes la contraseña anterior.
                 </p>
+              ) : null}
+              {request.details ? (
+                <div className="rounded-xl border border-ink/10 bg-paper/60 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Detalle</p>
+                  <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-ink">{request.details}</p>
+                </div>
               ) : null}
 
               <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-3">

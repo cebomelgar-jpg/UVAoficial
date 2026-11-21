@@ -11,7 +11,7 @@ const initialState: ActionState = {};
 export function SupportContactForm({
   initialRequestType = "password",
 }: {
-  initialRequestType?: "password" | "privacy" | "general";
+  initialRequestType?: "password" | "privacy" | "general" | "problem" | "product";
 }) {
   const [state, formAction, pending] = useActionState(
     submitSupportContactRequestAction,
@@ -69,6 +69,8 @@ export function SupportContactForm({
           >
             <option value="password">No puedo ingresar / olvidé mi contraseña</option>
             <option value="privacy">Solicitud sobre mis datos o privacidad</option>
+            <option value="problem">Tengo un problema o inconveniente</option>
+            <option value="product">Quiero pedir un producto especial</option>
             <option value="general">Otra consulta</option>
           </select>
         </div>
@@ -113,6 +115,19 @@ export function SupportContactForm({
             minLength={6}
             maxLength={30}
             placeholder="+54 9 ..."
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="support-details" className="label">
+            Contanos qué necesitás
+          </label>
+          <textarea
+            id="support-details"
+            name="details"
+            className="textarea min-h-28"
+            maxLength={2000}
+            placeholder="Describí el problema o indicá el producto, presentación y cantidad que buscás."
             required
           />
         </div>

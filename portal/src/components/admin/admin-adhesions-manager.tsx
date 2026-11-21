@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { CheckCircle2, Clock3, UserRoundX } from "lucide-react";
 import { reviewAdhesionAction } from "@/lib/actions/adhesion";
-import type { AdhesionApplication, Branch, ProfileStatus } from "@/lib/types";
+import type { AdhesionApplication, AdminProfile, Branch, ProfileStatus } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { ProfileStatusBadge } from "@/components/ui/profile-status-badge";
+import { updateProfileStatusAction } from "@/lib/actions/profiles";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/providers/toast-provider";
 
 type AdminApplication = {
   application: AdhesionApplication;
@@ -110,12 +113,37 @@ function AdminAdhesionCard({
 
 export function AdminAdhesionsManager({
   applications,
+  patientProfiles,
   branches,
 }: {
   applications: AdminApplication[];
+  patientProfiles: AdminProfile[];
   branches: Branch[];
 }) {
-  if (!applications.length) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isPending, startTransition] = useTransition();
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  function reviewPatient(profile: AdminProfile, status: "approved" | "rejected") {
+    if (status === "rejected" && !window.confirm(`¿Rechazar la cuenta de ${profile.full_name}?`)) return;
+    setUpdatingId(profile.id);
+    startTransition(async () => {
+      const result = await updateProfileStatusAction(profile.id, status);
+      if (result.error) {
+        toast({ title: "No se pudo actualizar", description: result.error, variant: "error" });
+      } else {
+        toast({
+          title: status === "approved" ? "Paciente habilitado" : "Cuenta rechazada",
+          description: profile.full_name,
+        });
+        router.refresh();
+      }
+      setUpdatingId(null);
+    });
+  }
+
+  if (!applications.length && !patientProfiles.length) {
     return (
       <div className="card p-8 text-center">
         <p className="text-sm font-semibold text-ink">No hay solicitudes para revisar</p>
@@ -129,14 +157,64 @@ export function AdminAdhesionsManager({
       <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
         Esta sección contiene datos personales y motivos clínicos. Solo deben usarse para evaluar y acompañar la adhesión.
       </p>
-      {applications.map(({ application, profile }) => (
-        <AdminAdhesionCard
-          key={application.user_id}
-          application={application}
-          profile={profile}
-          branches={branches}
-        />
-      ))}
+      {patientProfiles.length ? (
+        <section className="space-y-3">
+          <div>
+            <p className="eyebrow">Ya soy paciente</p>
+            <h2 className="mt-1 text-xl text-ink">Cuentas nuevas por habilitar</h2>
+          </div>
+          {patientProfiles.map((profile) => (
+            <article key={profile.id} className="card p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="font-semibold text-ink">{profile.full_name}</h3>
+                  <p className="mt-1 text-xs text-muted">{profile.email} · {profile.phone}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    Sede: {profile.branch?.name ?? "Sin sede"} · Registrado {formatDate(profile.created_at)}
+                  </p>
+                </div>
+                <ProfileStatusBadge status={profile.status} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-ink/10 pt-4">
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  disabled={isPending && updatingId === profile.id}
+                  onClick={() => reviewPatient(profile, "approved")}
+                >
+                  <CheckCircle2 className="size-3.5" />
+                  Aprobar acceso
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline btn-sm text-rose-700"
+                  disabled={isPending && updatingId === profile.id}
+                  onClick={() => reviewPatient(profile, "rejected")}
+                >
+                  <UserRoundX className="size-3.5" />
+                  Rechazar
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : null}
+      {applications.length ? (
+        <section className="space-y-3">
+          <div>
+            <p className="eyebrow">Nuevas solicitudes de adhesión</p>
+            <h2 className="mt-1 text-xl text-ink">Recorrido por completar y revisar</h2>
+          </div>
+          {applications.map(({ application, profile }) => (
+            <AdminAdhesionCard
+              key={application.user_id}
+              application={application}
+              profile={profile}
+              branches={branches}
+            />
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { firstZodError, loginSchema, profileSchema } from "@/lib/validation";
 import type { ActionState } from "@/lib/types";
 import type { AuthTokenResponsePassword } from "@supabase/supabase-js";
 import { safeNext } from "@/lib/safe-redirect";
+import { z } from "zod";
 
 function logAuthError(context: string, error: unknown) {
   const message = error instanceof Error ? error.message : "Error desconocido";
@@ -61,7 +62,98 @@ export async function registerAction(
 ): Promise<ActionState> {
   void previousState;
   void formData;
-  redirect("/adhesion/registro");
+  redirect("/registro");
+}
+
+const existingPatientSchema = z
+  .object({
+    email: z.string().trim().email("Ingresá un email válido."),
+    password: z
+      .string()
+      .min(8, "La contraseña debe tener al menos 8 caracteres.")
+      .max(72, "Máximo 72 caracteres.")
+      .regex(/[A-Za-z]/, "Incluí al menos una letra.")
+      .regex(/[0-9]/, "Incluí al menos un número."),
+    confirmPassword: z.string(),
+    fullName: z.string().trim().min(2, "Ingresá tu nombre completo.").max(80),
+    phone: z.string().trim().min(6, "Ingresá un teléfono válido.").max(30),
+    branchId: z.string().uuid("Elegí una sede."),
+    acceptTerms: z.string().refine((value) => value === "on", {
+      message: "Tenés que aceptar las condiciones y la política de privacidad.",
+    }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Las contraseñas no coinciden.",
+  });
+
+export async function registerExistingPatientAction(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = existingPatientSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+    fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
+    branchId: formData.get("branchId"),
+    acceptTerms: formData.get("acceptTerms"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: branch, error: branchError } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("id", parsed.data.branchId)
+      .eq("active", true)
+      .maybeSingle();
+    if (branchError || !branch) {
+      return { error: "La sede seleccionada no está disponible." };
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      options: {
+        data: {
+          account_type: "existing_patient",
+          full_name: parsed.data.fullName,
+          phone: parsed.data.phone,
+          branch_id: branch.id,
+        },
+        emailRedirectTo: new URL(
+          "/auth/callback?next=/pendiente",
+          process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://uva-oficial.vercel.app",
+        ).toString(),
+      },
+    });
+
+    if (error) {
+      return {
+        error: error.message.toLowerCase().includes("already registered")
+          ? "Ese email ya tiene una cuenta. Probá iniciar sesión."
+          : "No pudimos crear la cuenta. Revisá los datos e intentá nuevamente.",
+      };
+    }
+
+    if (data.session) redirect("/pendiente");
+  } catch (error) {
+    logAuthError("No se pudo crear la cuenta de paciente existente", error);
+    return {
+      error: "No pudimos crear la cuenta. Intentá nuevamente en unos minutos.",
+    };
+  }
+
+  return {
+    message:
+      "Registramos tu cuenta de paciente. Confirmá el email y el administrador revisará tu acceso.",
+  };
 }
 
 export async function signOutAction() {

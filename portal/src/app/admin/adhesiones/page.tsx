@@ -4,7 +4,7 @@ import { ClipboardCheck } from "lucide-react";
 import { AdminAdhesionsManager } from "@/components/admin/admin-adhesions-manager";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireAdmin } from "@/lib/auth";
-import { getAdminAdhesionApplications, getBranches } from "@/lib/data";
+import { getAdminAdhesionApplications, getAdminProfiles, getBranches } from "@/lib/data";
 
 export const metadata: Metadata = {
   title: "Solicitudes de adhesión",
@@ -14,10 +14,16 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminAdhesionsPage() {
   await requireAdmin();
-  const [applications, branches] = await Promise.all([
+  const [applications, branches, adminProfiles] = await Promise.all([
     getAdminAdhesionApplications(),
     getBranches(),
+    getAdminProfiles(),
   ]);
+  const patientProfiles = adminProfiles.profiles.filter(
+    (profile) =>
+      profile.role === "patient" &&
+      (profile.status === "pending" || profile.status === "rejected"),
+  );
 
   return (
     <div className="space-y-6">
@@ -32,7 +38,11 @@ export default async function AdminAdhesionsPage() {
           </Link>
         }
       />
-      <AdminAdhesionsManager applications={applications} branches={branches} />
+      <AdminAdhesionsManager
+        applications={applications}
+        patientProfiles={patientProfiles}
+        branches={branches}
+      />
     </div>
   );
 }

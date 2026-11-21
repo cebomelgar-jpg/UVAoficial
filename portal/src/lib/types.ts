@@ -72,10 +72,11 @@ export type SupportChatMessage = {
 
 export type SupportContactRequest = {
   id: string;
-  request_type: "password" | "privacy" | "general";
+  request_type: "password" | "privacy" | "general" | "problem" | "product";
   full_name: string;
   email: string;
   phone: string;
+  details: string | null;
   status: "pending" | "handled";
   created_at: string;
 };

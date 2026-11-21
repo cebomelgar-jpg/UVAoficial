@@ -1,12 +1,3 @@
--- Un Viaje Astral ? Portal de pacientes
--- Bootstrap manual: ejecuta todas las migraciones en orden.
--- Archivo generado desde supabase/migrations/. No editar a mano.
-
-begin;
-
--- ===========================================================================
--- 202610250001_initial_schema.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0001 · Esquema base
 -- Ejecutar en el SQL Editor de Supabase o con `supabase db push`.
@@ -124,11 +115,6 @@ comment on table public.profiles is 'Perfiles de pacientes y administradores del
 comment on table public.products is 'Catálogo privado de flores secas, rosin hash y vapes.';
 comment on table public.orders is 'Pedidos realizados por pacientes registrados.';
 comment on table public.order_items is 'Detalle histórico de productos por pedido.';
-
-
--- ===========================================================================
--- 202610250002_rls.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0002 · Row Level Security
 -- El catálogo es privado: sólo usuarios autenticados y administradores pueden leerlo.
@@ -263,11 +249,6 @@ create policy "order_items_select_own_or_admin"
 on public.order_items for select
 to authenticated
 using (public.can_access_order(order_id));
-
-
--- ===========================================================================
--- 202610250003_functions.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0003 · Funciones de negocio y triggers
 -- Los precios y el stock siempre se validan en el servidor.
@@ -656,11 +637,6 @@ revoke all on function public.admin_update_order_status(uuid, text, text) from p
 grant execute on function public.create_order(jsonb, text, text, text, text, text, text) to authenticated;
 grant execute on function public.cancel_order(uuid) to authenticated;
 grant execute on function public.admin_update_order_status(uuid, text, text) to authenticated;
-
-
--- ===========================================================================
--- 202610250004_storage.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0004 · Storage para imágenes de catálogo
 
@@ -700,11 +676,6 @@ create policy "product_images_admin_delete"
 on storage.objects for delete
 to authenticated
 using (bucket_id = 'product-images' and public.is_admin());
-
-
--- ===========================================================================
--- 202610250005_realtime.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0005 · Realtime para pedidos y catálogo
 
@@ -733,11 +704,6 @@ begin
   end if;
 end
 $$;
-
-
--- ===========================================================================
--- 202610250006_seed_catalog.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0006 · Catálogo inicial
 --
@@ -922,11 +888,6 @@ end
 $$;
 
 drop table if exists _seed_catalog;
-
-
--- ===========================================================================
--- 202610260001_multi_branch.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0007 · Multi-sede (Paraná y Villaguay)
 --
@@ -1498,11 +1459,6 @@ create policy "order_items_select_accessible"
 on public.order_items for select
 to authenticated
 using (public.can_access_order(order_id));
-
-
--- ===========================================================================
--- 202610270001_patient_documents.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0008 · Documentación del paciente
 --
@@ -1640,11 +1596,6 @@ using (
     or public.is_admin()
   )
 );
-
-
--- ===========================================================================
--- 202610280001_profile_approval.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- 0009 · Habilitación de cuentas y gestión de perfiles
 --
@@ -1976,13 +1927,10 @@ drop trigger if exists orders_require_approved on public.orders;
 create trigger orders_require_approved
 before insert on public.orders
 for each row execute function public.enforce_approved_order();
-
-
--- ===========================================================================
--- 202611200001_profile_approval_hardening.sql
--- ===========================================================================
 -- Remove la copia reversible de contraseñas y conserva el registro pendiente
 -- como estado predeterminado para altas nuevas.
+begin;
+
 alter table public.profiles
   alter column status set default 'pending';
 
@@ -1995,10 +1943,7 @@ alter table public.profiles
 
 drop table if exists public.profile_credentials;
 
-
--- ===========================================================================
--- 202611200002_profiles_realtime.sql
--- ===========================================================================
+commit;
 -- Publica cambios de perfiles para actualizar en vivo el panel administrativo.
 do $$
 begin
@@ -2018,11 +1963,6 @@ begin
   end if;
 end
 $$;
-
-
--- ===========================================================================
--- 202611200003_secure_support_chat.sql
--- ===========================================================================
 -- E2E encrypted, short-lived patient/admin conversations and internal requests.
 
 create table if not exists public.support_chat_keys (
@@ -2436,11 +2376,6 @@ begin
   end if;
 end
 $$;
-
-
--- ===========================================================================
--- 202611200004_secure_patient_document_uploads.sql
--- ===========================================================================
 -- Limit patient-document writes to the validated server action. The service
 -- role performs writes only after the upload's MIME signature has been checked.
 
@@ -2480,11 +2415,6 @@ using (
 drop policy if exists "patient_documents_storage_insert" on storage.objects;
 drop policy if exists "patient_documents_storage_update" on storage.objects;
 drop policy if exists "patient_documents_storage_delete" on storage.objects;
-
-
--- ===========================================================================
--- 202611200005_admin_delete_support_conversation.sql
--- ===========================================================================
 create or replace function public.admin_delete_support_conversation(
   p_conversation_id uuid
 )
@@ -2512,11 +2442,6 @@ revoke all on function public.admin_delete_support_conversation(uuid)
   from public, anon;
 grant execute on function public.admin_delete_support_conversation(uuid)
   to authenticated;
-
-
--- ===========================================================================
--- 202611210001_patient_catalog_privacy_and_derivatives.sql
--- ===========================================================================
 -- Un Viaje Astral · Portal de pacientes
 -- Oculta cantidades de stock, agrega productos derivados y la modalidad por encargo.
 
@@ -2734,12 +2659,9 @@ revoke all on function public.prevent_made_to_order_order_item() from public;
 grant execute on function public.catalog_products(uuid, text, boolean) to authenticated;
 grant execute on function public.admin_list_products(uuid, uuid) to authenticated;
 grant execute on function public.admin_low_stock_products(uuid) to authenticated;
-
-
--- ===========================================================================
--- 202611220001_admissions.sql
--- ===========================================================================
 -- Solicitudes de adhesión: una cuenta pública nueva nunca obtiene rol de paciente.
+begin;
+
 alter table public.profiles
   drop constraint if exists profiles_role_check;
 
@@ -2871,10 +2793,7 @@ create policy "adhesion_applications_update_owner_or_admin"
 revoke all on public.adhesion_applications from anon, public;
 grant select, insert, update on public.adhesion_applications to authenticated;
 
-
--- ===========================================================================
--- 202611220002_applicant_support_chat.sql
--- ===========================================================================
+commit;
 -- Permite que solicitantes autenticados usen el chat cifrado con administración,
 -- sin habilitar el resto de los recursos reservados a pacientes aprobados.
 
@@ -3093,5 +3012,178 @@ begin
   return new;
 end;
 $$;
+-- Diferencia los nuevos solicitantes de adhesión de los pacientes que ya tienen REPROCANN.
+
+begin;
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_account_type text := lower(coalesce(trim(new.raw_user_meta_data ->> 'account_type'), ''));
+  v_branch_ref text := lower(coalesce(trim(new.raw_user_meta_data ->> 'branch_id'), ''));
+  v_branch public.branches%rowtype;
+begin
+  if v_account_type = 'adhesion_applicant' then
+    insert into public.profiles (
+      id, full_name, phone, role, branch_id, email, status
+    )
+    values (
+      new.id,
+      coalesce(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), 'Solicitante'),
+      nullif(trim(new.raw_user_meta_data ->> 'phone'), ''),
+      'applicant',
+      null,
+      new.email,
+      'pending'
+    )
+    on conflict (id) do nothing;
+    return new;
+  end if;
+
+  if v_branch_ref is not null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+      and (id::text = v_branch_ref or lower(slug) = v_branch_ref)
+    limit 1;
+  end if;
+
+  if v_branch.id is null then
+    select *
+    into v_branch
+    from public.branches
+    where active = true
+    order by sort_order, name
+    limit 1;
+  end if;
+
+  insert into public.profiles (
+    id, full_name, phone, role, branch_id, email, status
+  )
+  values (
+    new.id,
+    coalesce(
+      nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+      split_part(coalesce(new.email, ''), '@', 1),
+      'Paciente'
+    ),
+    nullif(trim(new.raw_user_meta_data ->> 'phone'), ''),
+    'patient',
+    v_branch.id,
+    new.email,
+    'pending'
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
+-- Solicitudes internas: problema operativo y pedido especial de producto.
+alter table public.support_contact_requests
+  add column if not exists details text;
+
+alter table public.support_contact_requests
+  drop constraint if exists support_contact_requests_request_type_check;
+
+alter table public.support_contact_requests
+  add constraint support_contact_requests_request_type_check
+  check (request_type in (
+    'password',
+    'privacy',
+    'general',
+    'problem',
+    'product'
+  ));
+
+create or replace function public.submit_support_contact_request(
+  p_request_type text,
+  p_full_name text,
+  p_email text,
+  p_phone text,
+  p_details text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  if p_request_type not in (
+    'password', 'privacy', 'general', 'problem', 'product'
+  )
+     or length(p_full_name) not between 2 and 80
+     or length(p_email) not between 6 and 254
+     or p_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$'
+     or length(p_phone) not between 6 and 30
+     or p_phone !~ '^[+0-9() .-]+$'
+     or (p_details is not null and char_length(p_details) > 2000) then
+    raise exception 'Revisá los datos de la solicitud ingresados.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(lower(p_email), 0));
+  if exists (
+    select 1
+    from public.support_contact_requests r
+    where lower(r.email) = lower(p_email)
+      and r.created_at > now() - interval '5 minutes'
+  ) then
+    raise exception 'Ya recibimos una solicitud reciente. Esperá unos minutos antes de volver a enviarla.';
+  end if;
+
+  insert into public.support_contact_requests (
+    request_type, full_name, email, phone, details
+  )
+  values (
+    p_request_type, btrim(p_full_name), lower(btrim(p_email)),
+    btrim(p_phone), nullif(btrim(p_details), '')
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.submit_support_contact_request(text, text, text, text, text) from public;
+grant execute on function public.submit_support_contact_request(text, text, text, text, text) to anon, authenticated;
+
+-- Crea perfiles faltantes para cuentas existentes sin interferir con roles históricos.
+insert into public.profiles (
+  id, full_name, phone, role, branch_id, email, status
+)
+select
+  u.id,
+  coalesce(
+    nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''),
+    split_part(coalesce(u.email, ''), '@', 1),
+    'Paciente'
+  ),
+  nullif(trim(u.raw_user_meta_data ->> 'phone'), ''),
+  'patient',
+  (
+    select b.id
+    from public.branches b
+    where b.active = true
+    order by b.sort_order, b.name
+    limit 1
+  ),
+  u.email,
+  'pending'
+from auth.users u
+left join public.profiles p on p.id = u.id
+where p.id is null
+  and coalesce(lower(u.raw_user_meta_data ->> 'account_type'), '') <> 'adhesion_applicant';
 
 commit;

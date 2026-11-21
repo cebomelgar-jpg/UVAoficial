@@ -15,7 +15,12 @@ export default async function SupportRequestPage({
 }) {
   const { motivo } = await searchParams;
   const initialRequestType =
-    motivo === "privacy" || motivo === "general" ? motivo : "password";
+    motivo === "privacy" ||
+    motivo === "general" ||
+    motivo === "problem" ||
+    motivo === "product"
+      ? motivo
+      : "password";
 
   return (
     <div className="portal-canvas min-h-screen">

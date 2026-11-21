@@ -74,10 +74,18 @@ export default async function LoginPage({
       </div>
 
       <div className="mt-6 border-t border-ink/10 pt-5 text-center text-xs text-muted">
-        ¿Querés sumarte a la asociación?{" "}
-        <Link href="/adhesion/registro" className="font-semibold text-green-text hover:underline">
-          Solicitá tu adhesión
-        </Link>
+        <div>
+          ¿Ya sos paciente y todavía no tenés cuenta?{" "}
+          <Link href="/registro" className="font-semibold text-green-text hover:underline">
+            Creá tu acceso
+          </Link>
+        </div>
+        <div className="mt-2">
+          ¿Querés sumarte por primera vez?{" "}
+          <Link href="/adhesion/registro" className="font-semibold text-green-text hover:underline">
+            Solicitá la adhesión
+          </Link>
+        </div>
       </div>
     </div>
   );

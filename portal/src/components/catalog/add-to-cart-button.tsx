@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ShoppingBag } from "lucide-react";
 import { useCart } from "@/components/providers/cart-provider";
-import type { Product } from "@/lib/types";
+import type { CatalogProduct } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function AddToCartButton({
@@ -12,7 +12,7 @@ export function AddToCartButton({
   className = "btn-mint btn-sm",
   label = "Agregar",
 }: {
-  product: Product;
+  product: CatalogProduct;
   quantity?: number;
   className?: string;
   label?: string;
@@ -27,10 +27,14 @@ export function AddToCartButton({
     };
   }, []);
 
-  const unavailable = !product.active || product.stock <= 0 || product.price <= 0;
+  const unavailable =
+    !product.active ||
+    product.made_to_order ||
+    !product.available ||
+    product.price <= 0;
   const text =
-    product.stock <= 0
-      ? "Sin stock"
+    !product.available
+      ? "Consultar disponibilidad"
       : product.price <= 0
         ? "Precio a confirmar"
         : label;

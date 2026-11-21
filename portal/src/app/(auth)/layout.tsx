@@ -41,7 +41,7 @@ export default function AuthLayout({
           <ul className="mt-10 space-y-4 text-sm text-paper/75">
             {[
               { icon: <LockKeyhole className="size-4" />, text: "Acceso exclusivo para pacientes registrados." },
-              { icon: <Leaf className="size-4" />, text: "Fichas con cannabinoides, aromas y stock." },
+              { icon: <Leaf className="size-4" />, text: "Fichas de productos y opciones por encargo." },
               { icon: <ShieldCheck className="size-4" />, text: "Tus pedidos solo los ves vos y el equipo." },
             ].map((item) => (
               <li key={item.text} className="flex items-center gap-3">

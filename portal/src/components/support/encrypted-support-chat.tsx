@@ -84,7 +84,13 @@ function friendlyError(error: unknown) {
   return message || "No pudimos conectar el chat. Intentá nuevamente.";
 }
 
-export function PatientSupportChat({ userId }: { userId: string }) {
+export function PatientSupportChat({
+  userId,
+  requestProduct,
+}: {
+  userId: string;
+  requestProduct?: string;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [conversation, setConversation] = useState<SupportConversation | null>(null);
   const [adminId, setAdminId] = useState<string | null>(null);
@@ -213,10 +219,16 @@ export function PatientSupportChat({ userId }: { userId: string }) {
             </button>
           </div>
           <EncryptedConversation
+            key={requestProduct ?? "support"}
             conversation={conversation}
             userId={userId}
             peerId={adminId}
             peerName="Administración UVA"
+            initialDraft={
+              requestProduct
+                ? `Hola, quisiera consultar disponibilidad y fecha estimada para ${requestProduct} por encargo en mi sede.`
+                : undefined
+            }
           />
         </>
       ) : null}
@@ -624,16 +636,18 @@ function EncryptedConversation({
   userId,
   peerId,
   peerName,
+  initialDraft,
 }: {
   conversation: SupportConversation;
   userId: string;
   peerId: string;
   peerName: string;
+  initialDraft?: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);

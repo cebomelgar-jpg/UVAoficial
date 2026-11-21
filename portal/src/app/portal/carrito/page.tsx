@@ -14,7 +14,7 @@ export default function CartPage() {
       <PageHeader
         eyebrow="Tu selección"
         title="Carrito"
-        description="Revisá cantidades, stock y subtotales antes de continuar. El total definitivo se recalcula en el servidor."
+        description="Revisá cantidades y subtotales antes de continuar. El total definitivo se recalcula en el servidor."
         actions={
           <Link href="/portal/catalogo" className="btn-outline">
             <ArrowLeft className="size-4" />

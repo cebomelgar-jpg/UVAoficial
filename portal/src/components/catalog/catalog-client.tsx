@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useDeferredValue,
   useEffect,
@@ -10,6 +11,7 @@ import {
   ArrowRight,
   Beaker,
   Leaf,
+  MessageCircle,
   Minus,
   Plus,
   Search,
@@ -22,7 +24,7 @@ import { AddToCartButton } from "@/components/catalog/add-to-cart-button";
 import { Dialog } from "@/components/ui/dialog";
 import { CATEGORY_LABELS } from "@/lib/format";
 import { formatARS } from "@/lib/format";
-import type { Product, ProductCategory } from "@/lib/types";
+import type { CatalogProduct, ProductCategory } from "@/lib/types";
 import { cn, normalizeSearch } from "@/lib/utils";
 
 type Filter = "todos" | ProductCategory;
@@ -32,15 +34,36 @@ const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: "flores", label: "Flores secas" },
   { value: "rosin_hash", label: "Rosin Hash" },
   { value: "vapes", label: "Vapes" },
+  { value: "derivados", label: "Derivados" },
 ];
 
 const CATEGORY_NOTES: Record<ProductCategory, string> = {
   flores: "Genéticas seleccionadas con ficha de cannabinoides, aromas y efectos.",
   rosin_hash: "Extracciones sin solventes, de alta pureza.",
   vapes: "Formatos de vaporización para acompañar tu tratamiento.",
+  derivados:
+    "Aceites, cremas, ungüentos, tinturas, geles íntimos y otros derivados.",
 };
 
-function PotencyChips({ product }: { product: Product }) {
+function ProductInquiryLink({
+  product,
+  className,
+}: {
+  product: CatalogProduct;
+  className: string;
+}) {
+  return (
+    <Link
+      href={`/portal/ayuda?producto=${encodeURIComponent(product.name)}`}
+      className={className}
+    >
+      <MessageCircle className="size-3.5" />
+      Consultar por encargo
+    </Link>
+  );
+}
+
+function PotencyChips({ product }: { product: CatalogProduct }) {
   if (!product.thc && !product.cbd) {
     return <span className="chip">Perfil a definir</span>;
   }
@@ -61,7 +84,7 @@ function PotencyChips({ product }: { product: Product }) {
   );
 }
 
-function SativaBar({ product }: { product: Product }) {
+function SativaBar({ product }: { product: CatalogProduct }) {
   if (product.sativa_percent === null || product.indica_percent === null) {
     return (
       <div className="text-[11px] text-muted">
@@ -94,7 +117,7 @@ function ProductCard({
   product,
   onOpen,
 }: {
-  product: Product;
+  product: CatalogProduct;
   onOpen: () => void;
 }) {
   return (
@@ -115,15 +138,15 @@ function ProductCard({
               Destacado
             </span>
           ) : null}
+          {product.made_to_order ? (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-900">
+              Por encargo
+            </span>
+          ) : null}
         </div>
-        {product.stock <= 5 && product.stock > 0 ? (
-          <span className="absolute bottom-3 left-3 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-800">
-            Últimas {product.stock} unidades
-          </span>
-        ) : null}
-        {product.stock <= 0 ? (
-          <span className="absolute inset-0 grid place-items-center bg-deep/55 text-xs font-semibold uppercase tracking-[0.2em] text-paper backdrop-blur-[1px]">
-            Sin stock
+        {!product.available && !product.made_to_order ? (
+          <span className="absolute bottom-3 left-3 rounded-full bg-ink/85 px-2.5 py-1 text-[10px] font-semibold text-paper">
+            Consultar disponibilidad
           </span>
         ) : null}
       </div>
@@ -174,7 +197,11 @@ function ProductCard({
             <SlidersHorizontal className="size-3.5" />
             Detalle
           </button>
-          <AddToCartButton product={product} className="btn-mint btn-sm" />
+          {product.made_to_order ? (
+            <ProductInquiryLink product={product} className="btn-mint btn-sm" />
+          ) : (
+            <AddToCartButton product={product} className="btn-mint btn-sm" />
+          )}
         </div>
       </div>
     </article>
@@ -185,7 +212,7 @@ function ProductDetail({
   product,
   onClose,
 }: {
-  product: Product;
+  product: CatalogProduct;
   onClose: () => void;
 }) {
   const [quantity, setQuantity] = useState(1);
@@ -205,7 +232,11 @@ function ProductDetail({
             {CATEGORY_LABELS[product.category]}
           </span>
           <span className="chip">
-            {product.stock > 0 ? `${product.stock} disponibles` : "Sin stock"}
+            {product.made_to_order
+              ? "Por encargo"
+              : product.available
+                ? "Disponibilidad a confirmar"
+                : "Consultar disponibilidad"}
           </span>
         </div>
       </div>
@@ -251,44 +282,53 @@ function ProductDetail({
                 {product.price > 0 ? formatARS(product.price) : "A confirmar"}
               </p>
             </div>
-            <div className="flex items-center rounded-full border border-ink/15 bg-white p-1">
-              <button
-                type="button"
-                onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-                className="grid size-8 place-items-center rounded-full text-ink transition hover:bg-ink/5 disabled:opacity-40"
-                aria-label="Quitar una unidad"
-                disabled={quantity <= 1}
-              >
-                <Minus className="size-3.5" />
-              </button>
-              <span className="w-9 text-center text-sm font-semibold">
-                {quantity}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setQuantity((value) =>
-                    Math.min(value + 1, product.stock, 99),
-                  )
-                }
-                className="grid size-8 place-items-center rounded-full text-ink transition hover:bg-ink/5 disabled:opacity-40"
-                aria-label="Agregar una unidad"
-                disabled={quantity >= product.stock || product.stock <= 0}
-              >
-                <Plus className="size-3.5" />
-              </button>
-            </div>
+            {!product.made_to_order ? (
+              <div className="flex items-center rounded-full border border-ink/15 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+                  className="grid size-8 place-items-center rounded-full text-ink transition hover:bg-ink/5 disabled:opacity-40"
+                  aria-label="Quitar una unidad"
+                  disabled={quantity <= 1}
+                >
+                  <Minus className="size-3.5" />
+                </button>
+                <span className="w-9 text-center text-sm font-semibold">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuantity((value) => Math.min(value + 1, 99))
+                  }
+                  className="grid size-8 place-items-center rounded-full text-ink transition hover:bg-ink/5 disabled:opacity-40"
+                  aria-label="Agregar una unidad"
+                  disabled={quantity >= 99}
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+            ) : null}
           </div>
           <div className="mt-4">
-            <AddToCartButton
-              product={product}
-              quantity={quantity}
-              className="btn-mint w-full"
-              label="Agregar al carrito"
-            />
+            {product.made_to_order ? (
+              <ProductInquiryLink
+                product={product}
+                className="btn-mint w-full"
+              />
+            ) : (
+              <AddToCartButton
+                product={product}
+                quantity={quantity}
+                className="btn-mint w-full"
+                label="Agregar al carrito"
+              />
+            )}
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            El precio y el stock se validan nuevamente al confirmar el pedido.
+            {product.made_to_order
+              ? "Consultanos por disponibilidad y fecha estimada. El equipo coordinará la entrega con tu sede."
+              : "La disponibilidad y el precio se confirman con el equipo al preparar el pedido."}
           </p>
           <button
             type="button"
@@ -335,13 +375,13 @@ export function CatalogClient({
   products,
   initialCategory = "todos",
 }: {
-  products: Product[];
+  products: CatalogProduct[];
   initialCategory?: Filter;
 }) {
   const [filter, setFilter] = useState<Filter>(initialCategory);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [selected, setSelected] = useState<Product | null>(null);
+  const [selected, setSelected] = useState<CatalogProduct | null>(null);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -356,6 +396,7 @@ export function CatalogClient({
       flores: 0,
       rosin_hash: 0,
       vapes: 0,
+      derivados: 0,
     };
     for (const product of products) base[product.category] += 1;
     return base;
@@ -420,7 +461,7 @@ export function CatalogClient({
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar genética, aroma o efecto"
+              placeholder="Buscar producto, aroma o efecto"
               className="input pl-10 pr-9"
               aria-label="Buscar en el catálogo"
             />

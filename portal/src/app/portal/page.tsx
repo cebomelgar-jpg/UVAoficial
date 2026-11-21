@@ -164,7 +164,7 @@ export default async function PortalDashboardPage({
             </div>
             <div className="flex items-center gap-2.5">
               <Sparkles className="size-4 text-mint" />
-              Stock validado al confirmar
+              Disponibilidad a confirmar
             </div>
           </div>
           <Link
@@ -195,7 +195,7 @@ export default async function PortalDashboardPage({
             className="mt-5"
             icon={<Leaf className="size-6" />}
             title="Catálogo en preparación"
-            description="El administrador todavía no publicó productos con precio y stock. Mientras tanto, podés escribirle desde Ayuda y chat."
+            description="El administrador todavía no publicó productos. Mientras tanto, podés escribirle desde Ayuda y chat."
             action={
               <Link
                 href="/portal/ayuda"

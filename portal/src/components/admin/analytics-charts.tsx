@@ -300,6 +300,7 @@ const CATEGORY_COLORS: Record<ProductCategory, string> = {
   flores: "#009468",
   rosin_hash: "#5d3fcc",
   vapes: "#717ff5",
+  derivados: "#c27a2d",
 };
 
 export function AnalyticsBreakdowns({ data }: { data: AnalyticsData }) {

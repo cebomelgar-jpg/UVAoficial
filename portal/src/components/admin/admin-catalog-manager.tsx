@@ -49,6 +49,7 @@ const CATEGORY_FILTERS: Array<{ value: CategoryFilter; label: string }> = [
   { value: "flores", label: "Flores" },
   { value: "rosin_hash", label: "Rosin" },
   { value: "vapes", label: "Vapes" },
+  { value: "derivados", label: "Derivados" },
 ];
 
 export function AdminCatalogManager({
@@ -235,7 +236,8 @@ export function AdminCatalogManager({
         </div>
         <p className="text-[11px] text-muted">
           Para publicar un producto necesita precio mayor a cero. Los productos
-          con stock 0 se muestran como agotados si están activos.
+          con stock 0 se muestran como agotados si están activos. Marcá “Por
+          encargo” para indicar que la coordinación se hace con el administrador.
         </p>
       </div>
 
@@ -272,6 +274,11 @@ export function AdminCatalogManager({
                         </p>
                         {product.featured ? (
                           <Star className="size-3 fill-amber-400 text-amber-400" />
+                        ) : null}
+                        {product.made_to_order ? (
+                          <span className="chip border-amber-300 bg-amber-50 text-amber-900">
+                            Por encargo
+                          </span>
                         ) : null}
                       </div>
                       <p className="max-w-44 truncate text-[10px] text-muted">
@@ -685,6 +692,7 @@ function ProductForm({
             <option value="flores">Flores secas</option>
             <option value="rosin_hash">Rosin Hash</option>
             <option value="vapes">Vapes</option>
+            <option value="derivados">Derivados</option>
           </select>
         </div>
         <div>
@@ -809,6 +817,25 @@ function ProductForm({
             className="input"
             required
           />
+        </div>
+
+        <div className="sm:col-span-2 rounded-2xl border border-ink/10 bg-white/50 p-4">
+          <label className="flex cursor-pointer items-start gap-3 text-xs font-medium text-ink">
+            <input
+              type="checkbox"
+              name="made_to_order"
+              defaultChecked={product?.made_to_order ?? false}
+              className="mt-0.5 size-4 accent-[#009468]"
+            />
+            <span>
+              <span className="block">Por encargo</span>
+              <span className="mt-1 block font-normal leading-relaxed text-muted">
+                El paciente verá esta modalidad y podrá consultar al administrador
+                por el chat, sin agregarlo al carrito ni iniciar un pedido. La
+                configuración aplica solo a este producto y sede.
+              </span>
+            </span>
+          </label>
         </div>
 
         <div>

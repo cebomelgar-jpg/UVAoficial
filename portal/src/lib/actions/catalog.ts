@@ -63,6 +63,7 @@ export async function saveProductAction(
     effects: parseList(formData.get("effects")),
     price: formNumber(formData, "price"),
     stock: formNumber(formData, "stock"),
+    made_to_order: formData.get("made_to_order") === "on",
     presentation: formString(formData, "presentation"),
     image_url: formString(formData, "image_url"),
     active: formData.get("active") === "on",
@@ -107,6 +108,7 @@ export async function saveProductAction(
     effects: data.effects,
     price: data.price,
     stock: data.stock,
+    made_to_order: data.made_to_order,
     presentation: data.presentation || null,
     image_url: data.image_url || null,
     active: data.active,
@@ -169,13 +171,13 @@ export async function toggleProductActiveAction(formData: FormData) {
   const supabase = await createClient();
 
   if (active) {
-    const { data: product } = await supabase
-      .from("products")
-      .select("price")
-      .eq("id", productId)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("admin_list_products", {
+      p_branch_id: null,
+      p_product_id: productId,
+    });
+    const product = (data ?? [])[0];
 
-    if (!product || Number(product.price) <= 0) {
+    if (error || !product || Number(product.price) <= 0) {
       redirect(
         withSede(
           "/admin/catalogo?error=Asign%C3%A1+un+precio+mayor+a+cero+antes+de+publicar.",

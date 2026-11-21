@@ -14,7 +14,12 @@ export const metadata: Metadata = {
   title: "Catálogo",
 };
 
-const validCategories: ProductCategory[] = ["flores", "rosin_hash", "vapes"];
+const validCategories: ProductCategory[] = [
+  "flores",
+  "rosin_hash",
+  "vapes",
+  "derivados",
+];
 
 export default async function CatalogPage({
   searchParams,
@@ -44,8 +49,8 @@ export default async function CatalogPage({
         title="Elegí con calma."
         description={
           branch
-            ? `Catálogo de ${branch.name}. Fichas con cannabinoides, proporción sativa/indica, aromas, sabores y stock. Los precios y la disponibilidad se confirman al crear el pedido.`
-            : "Fichas con cannabinoides, proporción sativa/indica, aromas, sabores y stock. Los precios y la disponibilidad se confirman al crear el pedido."
+            ? `Catálogo de ${branch.name}. Consultá las fichas y elegí entre productos disponibles y opciones por encargo.`
+            : "Consultá las fichas y elegí entre productos disponibles y opciones por encargo."
         }
         actions={
           <>
@@ -64,8 +69,8 @@ export default async function CatalogPage({
           title="El catálogo está en preparación"
           description={
             branch
-              ? `El administrador todavía no publicó productos con precio y stock para ${branch.name}. Podés consultar disponibilidad mientras tanto.`
-              : "El administrador todavía no publicó productos con precio y stock. Podés consultar disponibilidad mientras tanto."
+              ? `El administrador todavía no publicó productos para ${branch.name}. Podés consultarle desde Ayuda y chat.`
+              : "El administrador todavía no publicó productos. Podés consultarle desde Ayuda y chat."
           }
           action={
             <Link
@@ -81,8 +86,8 @@ export default async function CatalogPage({
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-green/15 bg-mint/15 px-4 py-3 text-xs text-green-text">
             <Leaf className="size-4" />
-            Catálogo exclusivo para pacientes registrados. El stock se descuenta
-            al confirmar el pedido.
+            Catálogo exclusivo para pacientes registrados. La disponibilidad se
+            confirma con el equipo.
             {profile.role === "admin" && branch ? (
               <span className="font-semibold">Vista previa: {branch.name}.</span>
             ) : null}

@@ -9,6 +9,7 @@ import type {
   AnalyticsRange,
   AdminPatientDocument,
   Branch,
+  CatalogProduct,
   Order,
   OrderItem,
   OrderStatus,
@@ -32,9 +33,12 @@ const ORDER_STATUSES: OrderStatus[] = [
 ];
 
 const PAYMENT_METHODS: PaymentMethod[] = ["cash", "bank_transfer"];
-const CATEGORIES: ProductCategory[] = ["flores", "rosin_hash", "vapes"];
-const NO_BRANCH_ID = "00000000-0000-4000-8000-000000000000";
-
+const CATEGORIES: ProductCategory[] = [
+  "flores",
+  "rosin_hash",
+  "vapes",
+  "derivados",
+];
 function branchFilter(branchId?: string | null) {
   return branchId ? { branch_id: branchId } : {};
 }
@@ -72,34 +76,24 @@ export async function getBranches(includeInactive = false): Promise<Branch[]> {
 export async function getActiveProducts(
   category?: ProductCategory,
   branchId?: string | null,
-) {
+): Promise<CatalogProduct[]> {
   if (!branchId) return [];
 
   const supabase = await createClient();
-  let query = supabase
-    .from("products")
-    .select("*")
-    .eq("active", true)
-    .eq("branch_id", branchId)
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
-
-  if (category) query = query.eq("category", category);
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("catalog_products", {
+    p_branch_id: branchId,
+    p_category: category ?? null,
+    p_featured_only: false,
+  });
   if (error) logAndThrow("No pudimos cargar el catálogo.", error);
-  return (data ?? []) as Product[];
+  return (data ?? []) as CatalogProduct[];
 }
 
 export async function getAllProducts(branchId?: string | null) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .match(branchFilter(branchId))
-    .order("category", { ascending: true })
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  const { data, error } = await supabase.rpc("admin_list_products", {
+    p_branch_id: branchId ?? null,
+  });
 
   if (error) logAndThrow("No pudimos cargar el catálogo.", error);
   return (data ?? []) as Product[];
@@ -107,14 +101,13 @@ export async function getAllProducts(branchId?: string | null) {
 
 export async function getProductById(id: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("admin_list_products", {
+    p_branch_id: null,
+    p_product_id: id,
+  });
 
   if (error) logAndThrow("No pudimos cargar el producto.", error);
-  return (data as Product | null) ?? null;
+  return ((data ?? [])[0] as Product | undefined) ?? null;
 }
 
 export async function getPatientOrders(userId: string) {
@@ -460,13 +453,9 @@ export async function getAdminOverview(branchId?: string | null) {
       .select("id", { count: "exact", head: true })
       .match(filter)
       .eq("role", "patient"),
-    supabase
-      .from("products")
-      .select("id, name, stock, category, active, branch_id")
-      .match(filter)
-      .eq("active", true)
-      .order("stock", { ascending: true })
-      .limit(5),
+    supabase.rpc("admin_low_stock_products", {
+      p_branch_id: branchId ?? null,
+    }),
     supabase
       .from("products")
       .select("id", { count: "exact", head: true })
@@ -556,6 +545,14 @@ export async function getPatientOverview(
 ) {
   const supabase = await createClient();
 
+  const featuredProducts = branchId
+    ? supabase.rpc("catalog_products", {
+        p_branch_id: branchId,
+        p_category: null,
+        p_featured_only: true,
+      })
+    : Promise.resolve({ data: [] as CatalogProduct[], error: null });
+
   const [ordersResult, featuredResult] = await Promise.all([
     supabase
       .from("orders")
@@ -564,16 +561,7 @@ export async function getPatientOverview(
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("products")
-      .select("*")
-      .eq("branch_id", branchId ?? NO_BRANCH_ID)
-      .eq("active", true)
-      .gt("stock", 0)
-      .gt("price", 0)
-      .order("featured", { ascending: false })
-      .order("sort_order", { ascending: true })
-      .limit(4),
+    featuredProducts,
   ]);
 
   if (ordersResult.error) logAndThrow("No pudimos cargar tu resumen.", ordersResult.error);
@@ -594,7 +582,7 @@ export async function getPatientOverview(
     totalSpent: orders
       .filter((order) => order.status !== "cancelled")
       .reduce((sum, order) => sum + Number(order.total), 0),
-    featured: (featuredResult.data ?? []) as Product[],
+    featured: (featuredResult.data ?? []) as CatalogProduct[],
   };
 }
 

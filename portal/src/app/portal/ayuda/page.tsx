@@ -7,8 +7,14 @@ export const metadata: Metadata = {
   title: "Ayuda y chat",
 };
 
-export default async function PatientSupportPage() {
+export default async function PatientSupportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ producto?: string }>;
+}) {
   const profile = await requireProfile();
+  const params = await searchParams;
+  const productName = params.producto?.trim().slice(0, 80) || undefined;
 
   return (
     <div className="space-y-6">
@@ -17,7 +23,7 @@ export default async function PatientSupportPage() {
         title="Ayuda y chat"
         description="Contactá al administrador desde una conversación privada y temporal."
       />
-      <PatientSupportChat userId={profile.id} />
+      <PatientSupportChat userId={profile.id} requestProduct={productName} />
     </div>
   );
 }

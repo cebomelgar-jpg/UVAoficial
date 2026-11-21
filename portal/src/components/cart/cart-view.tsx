@@ -22,7 +22,7 @@ export function CartView() {
       <EmptyState
         icon={<ShoppingBag className="size-6" />}
         title="Tu carrito está vacío"
-        description="Explorá el catálogo y agregá los productos que quieras consultar. Podés revisar cantidades y stock antes de confirmar."
+        description="Explorá el catálogo y agregá los productos que quieras consultar. Podés revisar las cantidades y los subtotales antes de continuar."
         action={
           <Link href="/portal/catalogo" className="btn-primary">
             Ir al catálogo
@@ -85,7 +85,7 @@ export function CartView() {
                     onClick={() => setQuantity(item.productId, item.quantity + 1)}
                     className="grid size-8 place-items-center rounded-full text-ink transition hover:bg-ink/5 disabled:opacity-40"
                     aria-label="Agregar una unidad"
-                    disabled={item.quantity >= item.stock || item.quantity >= 99}
+                    disabled={item.quantity >= 99}
                   >
                     <Plus className="size-3.5" />
                   </button>
@@ -99,11 +99,6 @@ export function CartView() {
                   </p>
                 </div>
               </div>
-              {item.quantity >= item.stock ? (
-                <p className="mt-2 text-[11px] text-amber-700">
-                  Alcanzaste el stock disponible ({item.stock} unidades).
-                </p>
-              ) : null}
             </div>
           </div>
         ))}
@@ -151,7 +146,8 @@ export function CartView() {
         </Link>
         <p className="mt-3 text-[11px] leading-relaxed text-muted">
           El total definitivo se calcula en el servidor con los precios y el
-          stock vigentes al confirmar. Si un producto se agotó, te avisaremos.
+          disponibilidad vigente al confirmar. Si algún producto no está
+          disponible, te avisaremos.
         </p>
       </aside>
     </div>

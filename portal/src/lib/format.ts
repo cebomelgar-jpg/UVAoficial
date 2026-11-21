@@ -73,12 +73,15 @@ export const CATEGORY_LABELS: Record<ProductCategory, string> = {
   flores: "Flores secas",
   rosin_hash: "Rosin Hash",
   vapes: "Vapes",
+  derivados: "Derivados",
 };
 
 export const CATEGORY_DESCRIPTIONS: Record<ProductCategory, string> = {
   flores: "Genéticas seleccionadas con perfil de cannabinoides y aromas.",
   rosin_hash: "Extracciones sin solventes, de alta pureza.",
   vapes: "Formatos de vaporización para acompañar tu tratamiento.",
+  derivados:
+    "Aceites, cremas, ungüentos, tinturas, geles íntimos y otros derivados.",
 };
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {

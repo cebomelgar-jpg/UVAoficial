@@ -9,17 +9,18 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { CartItem, Product } from "@/lib/types";
+import type { CartItem, CatalogProduct } from "@/lib/types";
 import { useToast } from "@/components/providers/toast-provider";
 
-const STORAGE_KEY = "uva-portal-cart-v1";
+const STORAGE_KEY = "uva-portal-cart-v2";
+const LEGACY_STORAGE_KEY = "uva-portal-cart-v1";
 
 type CartContextValue = {
   items: CartItem[];
   ready: boolean;
   totalItems: number;
   subtotal: number;
-  addItem: (product: Product, quantity?: number) => boolean;
+  addItem: (product: CatalogProduct, quantity?: number) => boolean;
   removeItem: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
   setBranch: (branchId: string | null) => void;
@@ -37,9 +38,8 @@ function sanitizeItem(value: unknown): CartItem | null {
     typeof item.slug !== "string" ||
     typeof item.name !== "string" ||
     typeof item.price !== "number" ||
-    typeof item.stock !== "number" ||
     typeof item.quantity !== "number" ||
-    !["flores", "rosin_hash", "vapes"].includes(item.category ?? "")
+    !["flores", "rosin_hash", "vapes", "derivados"].includes(item.category ?? "")
   ) {
     return null;
   }
@@ -52,8 +52,7 @@ function sanitizeItem(value: unknown): CartItem | null {
     price: item.price,
     imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
     category: item.category!,
-    stock: item.stock,
-    quantity: Math.max(1, Math.min(item.quantity, item.stock, 99)),
+    quantity: Math.max(1, Math.min(item.quantity, 99)),
   };
 }
 
@@ -65,6 +64,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -115,11 +115,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addItem = useCallback(
-    (product: Product, quantity = 1) => {
-      if (!product.active || product.stock <= 0) {
+    (product: CatalogProduct, quantity = 1) => {
+      if (product.made_to_order) {
         toast({
-          title: "Producto sin stock",
-          description: "Consultá al administrador desde Ayuda y chat o elegí otra opción del catálogo.",
+          title: "Producto por encargo",
+          description:
+            "Consultá al administrador desde Ayuda y chat para coordinarlo.",
+          variant: "info",
+        });
+        return false;
+      }
+
+      if (!product.active || !product.available) {
+        toast({
+          title: "Disponibilidad a confirmar",
+          description:
+            "Consultá al administrador desde Ayuda y chat antes de agregar este producto.",
           variant: "info",
         });
         return false;
@@ -163,12 +174,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                   ...item,
                   branchId: product.branch_id,
                   price: product.price,
-                  stock: product.stock,
-                  quantity: Math.min(
-                    item.quantity + quantity,
-                    product.stock,
-                    99,
-                  ),
+                  quantity: Math.min(item.quantity + quantity, 99),
                 }
               : item,
           );
@@ -184,8 +190,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             price: product.price,
             imageUrl: product.image_url,
             category: product.category,
-            stock: product.stock,
-            quantity: Math.min(quantity, product.stock, 99),
+            quantity: Math.min(quantity, 99),
           },
         ];
       });
@@ -213,7 +218,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           if (quantity <= 0) return null;
           return {
             ...item,
-            quantity: Math.min(quantity, item.stock, 99),
+            quantity: Math.min(quantity, 99),
           };
         })
         .filter((item): item is CartItem => Boolean(item)),

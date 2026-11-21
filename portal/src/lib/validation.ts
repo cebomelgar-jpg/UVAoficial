@@ -69,7 +69,7 @@ export const productSchema = z.object({
     .min(2, "El slug es obligatorio.")
     .max(80)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Usá minúsculas, números y guiones."),
-  category: z.enum(["flores", "rosin_hash", "vapes"]),
+  category: z.enum(["flores", "rosin_hash", "vapes", "derivados"]),
   description: optionalText(2000),
   thc: optionalText(20),
   cbd: optionalText(20),
@@ -80,6 +80,7 @@ export const productSchema = z.object({
   effects: z.array(z.string().trim().min(1).max(40)).max(12),
   price: z.number().min(0, "El precio no puede ser negativo.").max(100_000_000),
   stock: z.number().int().min(0, "El stock no puede ser negativo.").max(100_000),
+  made_to_order: z.boolean(),
   presentation: optionalText(40),
   image_url: optionalText(500).refine(isAllowedImageUrl, {
     message:

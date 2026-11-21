@@ -130,16 +130,32 @@ if (branches.error) {
 
 const anonProducts = await anon
   .from("products")
-  .select("id", { count: "exact" })
+  .select("stock")
   .limit(1);
 
-if (anonProducts.error) {
+if (anonProducts.error?.code === "42501") {
+  ok("Privacidad del stock", "el rol anónimo no puede consultar existencias");
+} else if (!anonProducts.error) {
+  fail("Privacidad del stock", "el rol anónimo puede consultar existencias");
+} else {
   fail(
-    "Acceso anónimo a products",
+    "Privacidad del stock",
     `${anonProducts.error.code ?? ""} ${cleanupMessage(anonProducts.error.message)}`,
   );
+}
+
+const madeToOrderColumn = await admin
+  .from("products")
+  .select("made_to_order")
+  .limit(0);
+
+if (madeToOrderColumn.error) {
+  fail(
+    "Columna products.made_to_order",
+    `${madeToOrderColumn.error.code ?? ""} ${cleanupMessage(madeToOrderColumn.error.message)}`,
+  );
 } else {
-  ok("Acceso anónimo a products", "la API responde");
+  ok("Columna products.made_to_order", "presente");
 }
 
 const functions = [
@@ -188,6 +204,32 @@ for (const [name, args] of functions) {
     ok(`RPC ${name}`, "existe");
   } else {
     ok(`RPC ${name}`, "existe");
+  }
+}
+
+const catalogFunctions = [
+  [
+    "catalog_products",
+    {
+      p_branch_id: "00000000-0000-0000-0000-000000000000",
+      p_category: null,
+      p_featured_only: false,
+    },
+  ],
+  ["admin_list_products", { p_branch_id: null, p_product_id: null }],
+  ["admin_low_stock_products", { p_branch_id: null }],
+];
+
+for (const [name, args] of catalogFunctions) {
+  const { error } = await anon.rpc(name, args);
+  if (error?.code === "PGRST202") {
+    fail(`RPC ${name}`, "no existe");
+  } else if (error?.code === "42501") {
+    ok(`RPC ${name}`, "existe y deniega el acceso anónimo");
+  } else if (error) {
+    fail(`RPC ${name}`, cleanupMessage(error.message));
+  } else {
+    fail(`RPC ${name}`, "permitió una llamada anónima sin autorización");
   }
 }
 

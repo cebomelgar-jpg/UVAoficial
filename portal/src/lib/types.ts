@@ -62,7 +62,7 @@ export type SupportContactRequest = {
   created_at: string;
 };
 
-export type ProductCategory = "flores" | "rosin_hash" | "vapes";
+export type ProductCategory = "flores" | "rosin_hash" | "vapes" | "derivados";
 
 export type Product = {
   id: string;
@@ -80,6 +80,7 @@ export type Product = {
   effects: string[];
   price: number;
   stock: number;
+  made_to_order: boolean;
   presentation: string | null;
   image_url: string | null;
   active: boolean;
@@ -87,6 +88,10 @@ export type Product = {
   sort_order: number;
   created_at: string;
   updated_at: string;
+};
+
+export type CatalogProduct = Omit<Product, "stock"> & {
+  available: boolean;
 };
 
 export type OrderStatus =
@@ -191,7 +196,6 @@ export type CartItem = {
   price: number;
   imageUrl: string | null;
   category: ProductCategory;
-  stock: number;
   quantity: number;
 };
 

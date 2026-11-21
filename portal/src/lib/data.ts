@@ -166,7 +166,7 @@ export async function getPatientDocuments(userId: string): Promise<{
     ((data ?? []) as PatientDocument[]).map(async (document) => {
       const { data: signed, error: signedError } = await supabase.storage
         .from("patient-documents")
-        .createSignedUrl(document.file_path, 60 * 10, {
+        .createSignedUrl(document.file_path, 5 * 60, {
           download: document.file_name,
         });
 

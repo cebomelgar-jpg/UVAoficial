@@ -102,3 +102,24 @@ export async function deleteSupportRequestAction(
   revalidatePath("/admin/solicitudes");
   return { message: "Solicitud eliminada." };
 }
+
+export async function deleteSupportConversationAction(
+  conversationId: string,
+): Promise<ActionState> {
+  await requireAdmin();
+  const parsedId = requestIdSchema.safeParse(conversationId);
+  if (!parsedId.success) return { error: "Conversación inválida." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_delete_support_conversation", {
+    p_conversation_id: parsedId.data,
+  });
+
+  if (error) {
+    console.error("[support] No se pudo borrar la conversación.", error.message);
+    return { error: "No pudimos borrar la conversación." };
+  }
+
+  revalidatePath("/admin/mensajes");
+  return { message: "Conversación borrada." };
+}

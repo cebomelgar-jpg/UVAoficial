@@ -165,6 +165,10 @@ const functions = [
   ["open_support_conversation", {}],
   ["reset_support_chat_key", {}],
   [
+    "admin_delete_support_conversation",
+    { p_conversation_id: "00000000-0000-0000-0000-000000000000" },
+  ],
+  [
     "submit_support_contact_request",
     {
       p_request_type: "invalid",

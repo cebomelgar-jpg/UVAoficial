@@ -1,17 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
+  Bell,
+  BellOff,
   Clock3,
   LockKeyhole,
   Loader2,
   MessageCircle,
   Send,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { deleteSupportConversationAction } from "@/lib/actions/support";
+import {
+  getSupportConversationLastRead,
+  isSupportNotificationEnabled,
+  markSupportConversationRead,
+  setSupportNotificationEnabled,
+} from "@/lib/support-notification-preferences";
 import {
   decryptSupportMessage,
   deriveSupportEncryptionKey,
@@ -78,6 +88,7 @@ export function PatientSupportChat({ userId }: { userId: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [conversation, setConversation] = useState<SupportConversation | null>(null);
   const [adminId, setAdminId] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -125,6 +136,24 @@ export function PatientSupportChat({ userId }: { userId: string }) {
     };
   }, [supabase, userId]);
 
+  useEffect(() => {
+    if (conversation) {
+      setNotificationsEnabled(isSupportNotificationEnabled(userId, conversation.id));
+    }
+  }, [conversation, userId]);
+
+  function toggleNotifications() {
+    if (!conversation) return;
+    const enabled = !notificationsEnabled;
+    try {
+      setSupportNotificationEnabled(userId, conversation.id, enabled);
+      setNotificationsEnabled(enabled);
+      setError(null);
+    } catch (reason) {
+      setError(friendlyError(reason));
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="card flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -166,12 +195,30 @@ export function PatientSupportChat({ userId }: { userId: string }) {
           ) : null}
         </div>
       ) : conversation && adminId ? (
-        <EncryptedConversation
-          conversation={conversation}
-          userId={userId}
-          peerId={adminId}
-          peerName="Administración UVA"
-        />
+        <>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={toggleNotifications}
+              className="btn-outline btn-sm"
+              aria-pressed={notificationsEnabled}
+            >
+              {notificationsEnabled ? (
+                <Bell className="size-3.5" />
+              ) : (
+                <BellOff className="size-3.5" />
+              )}
+              Notificaciones emergentes{" "}
+              {notificationsEnabled ? "activadas" : "desactivadas"}
+            </button>
+          </div>
+          <EncryptedConversation
+            conversation={conversation}
+            userId={userId}
+            peerId={adminId}
+            peerName="Administración UVA"
+          />
+        </>
       ) : null}
     </div>
   );
@@ -185,12 +232,18 @@ export function AdminSupportChats({
   conversations: SupportConversation[];
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedConversationId = searchParams.get("conversation");
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [keyReady, setKeyReady] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [notificationPreferences, setNotificationPreferences] = useState<
+    Record<string, boolean>
+  >(() => Object.fromEntries(initialConversations.map((conversation) => [conversation.id, true])));
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function resetLostKey() {
     const { error: resetError } = await supabase.rpc("reset_support_chat_key");
@@ -209,8 +262,117 @@ export function AdminSupportChats({
       conversations.some((conversation) => conversation.id === requestedConversationId)
     ) {
       setSelectedId(requestedConversationId);
+      try {
+        markSupportConversationRead(userId, requestedConversationId);
+        setUnreadCounts((current) => ({ ...current, [requestedConversationId]: 0 }));
+      } catch (reason) {
+        setKeyError(friendlyError(reason));
+      }
     }
-  }, [conversations, requestedConversationId]);
+  }, [conversations, requestedConversationId, userId]);
+
+  useEffect(() => {
+    setNotificationPreferences(
+      Object.fromEntries(
+        conversations.map((conversation) => [
+          conversation.id,
+          isSupportNotificationEnabled(userId, conversation.id),
+        ]),
+      ),
+    );
+  }, [conversations, userId]);
+
+  useEffect(() => {
+    let active = true;
+    const conversationIds = conversations.map((conversation) => conversation.id);
+    if (!conversationIds.length) {
+      setUnreadCounts({});
+      return;
+    }
+
+    const seenMessages = new Set<string>();
+    const lastReadByConversation = new Map(
+      conversations.map((conversation) => [
+        conversation.id,
+        getSupportConversationLastRead(userId, conversation.id) ??
+          conversation.created_at,
+      ]),
+    );
+
+    async function loadUnreadMessages() {
+      const { data, error } = await supabase
+        .from("support_chat_messages")
+        .select("id, conversation_id, sender_id, created_at")
+        .in("conversation_id", conversationIds)
+        .neq("sender_id", userId)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("[admin/support] No se pudieron contar los mensajes nuevos.", error.message);
+        return;
+      }
+      if (!active) return;
+
+      const counts: Record<string, number> = {};
+      for (const message of data ?? []) {
+        seenMessages.add(message.id);
+        const lastRead = lastReadByConversation.get(message.conversation_id);
+        if (
+          message.conversation_id !== selectedId &&
+          lastRead &&
+          message.created_at > lastRead
+        ) {
+          counts[message.conversation_id] = (counts[message.conversation_id] ?? 0) + 1;
+        }
+      }
+      setUnreadCounts(counts);
+    }
+
+    const channel = supabase
+      .channel(`admin-support-unread-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "support_chat_messages" },
+        (payload: { new: Record<string, unknown> }) => {
+          const message = payload.new;
+          if (
+            typeof message.id !== "string" ||
+            typeof message.conversation_id !== "string" ||
+            message.sender_id === userId ||
+            !conversationIds.includes(message.conversation_id) ||
+            seenMessages.has(message.id)
+          ) {
+            return;
+          }
+          seenMessages.add(message.id);
+          if (message.conversation_id === selectedId) {
+            try {
+              markSupportConversationRead(userId, message.conversation_id);
+            } catch (reason) {
+              console.error("[admin/support] No se pudo marcar el chat como leído.", reason);
+            }
+            setUnreadCounts((current) => ({ ...current, [message.conversation_id as string]: 0 }));
+            return;
+          }
+          setUnreadCounts((current) => ({
+            ...current,
+            [message.conversation_id as string]:
+              (current[message.conversation_id as string] ?? 0) + 1,
+          }));
+        },
+      )
+      .subscribe((status: string) => {
+        if (active && (status === "CHANNEL_ERROR" || status === "TIMED_OUT")) {
+          console.error("[admin/support] No se pudo conectar el contador de mensajes en tiempo real.");
+        }
+      });
+
+    void loadUnreadMessages();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [conversations, selectedId, supabase, userId]);
 
   useEffect(() => {
     let active = true;
@@ -240,52 +402,175 @@ export function AdminSupportChats({
 
   const selected = conversations.find((item) => item.id === selectedId) ?? null;
 
+  function openConversation(conversationId: string) {
+    setSelectedId(conversationId);
+    try {
+      markSupportConversationRead(userId, conversationId);
+      setUnreadCounts((current) => ({ ...current, [conversationId]: 0 }));
+    } catch (reason) {
+      setKeyError(friendlyError(reason));
+    }
+    router.replace(
+      `/admin/mensajes?conversation=${encodeURIComponent(conversationId)}`,
+      { scroll: false },
+    );
+  }
+
+  function toggleConversationNotifications(conversationId: string) {
+    const enabled = notificationPreferences[conversationId] === false;
+    try {
+      setSupportNotificationEnabled(userId, conversationId, enabled);
+      setNotificationPreferences((current) => ({ ...current, [conversationId]: enabled }));
+    } catch (reason) {
+      setKeyError(friendlyError(reason));
+    }
+  }
+
+  async function deleteConversation(conversation: SupportConversation) {
+    if (
+      !window.confirm(
+        `¿Borrar la conversación de ${conversation.patient?.full_name ?? "este paciente"}? Se eliminarán permanentemente todos sus mensajes.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(conversation.id);
+    try {
+      const result = await deleteSupportConversationAction(conversation.id);
+      if (result.error) {
+        setKeyError(result.error);
+        return;
+      }
+      setConversations((current) =>
+        current.filter((item) => item.id !== conversation.id),
+      );
+      setUnreadCounts((current) => {
+        const next = { ...current };
+        delete next[conversation.id];
+        return next;
+      });
+      if (selectedId === conversation.id) {
+        setSelectedId(null);
+        router.replace("/admin/mensajes", { scroll: false });
+      }
+      router.refresh();
+    } catch (reason) {
+      console.error("[admin/support] No se pudo borrar la conversación.", reason);
+      setKeyError("No pudimos borrar la conversación. Intentá nuevamente.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedId && !conversations.some((conversation) => conversation.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [conversations, selectedId]);
+
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(16rem,.7fr)_minmax(0,1.3fr)]">
-      <section className="card overflow-hidden">
-        <div className="border-b border-ink/10 p-4">
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <div>
           <h2 className="font-semibold text-ink">Conversaciones activas</h2>
           <p className="mt-1 text-xs text-muted">
-            Se eliminan automáticamente tras 60 minutos sin actividad.
+            Elegí un mosaico para abrir ese chat. Al seleccionar otro, la
+            conversación anterior se cierra. Los chats vencen tras 60 minutos
+            sin actividad.
           </p>
         </div>
         {conversations.length ? (
-          <div className="divide-y divide-ink/10">
-            {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                type="button"
-                onClick={() => setSelectedId(conversation.id)}
-                className={cn(
-                  "w-full p-4 text-left transition hover:bg-mint/10",
-                  selectedId === conversation.id && "bg-mint/15",
-                )}
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-ink">
-                      {conversation.patient?.full_name ?? "Paciente"}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {conversations.map((conversation) => {
+              const isSelected = selectedId === conversation.id;
+              return (
+                <article
+                  key={conversation.id}
+                  className={cn(
+                    "card min-w-0 p-4 transition hover:-translate-y-0.5 hover:border-green/30 hover:shadow-card",
+                    isSelected && "border-green/40 bg-mint/15 ring-2 ring-green/15",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openConversation(conversation.id)}
+                    aria-pressed={isSelected}
+                    className="w-full text-left"
+                  >
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-ink">
+                          {conversation.patient?.full_name ?? "Paciente"}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-muted">
+                          {conversation.patient?.email ?? "Sin email"}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {unreadCounts[conversation.id] ? (
+                          <span
+                            className="grid min-w-6 place-items-center rounded-full bg-green-text px-1.5 py-0.5 text-[10px] font-bold text-white"
+                            aria-label={`${unreadCounts[conversation.id]} mensajes nuevos`}
+                          >
+                            {unreadCounts[conversation.id] > 99
+                              ? "99+"
+                              : unreadCounts[conversation.id]}
+                          </span>
+                        ) : null}
+                        <span className="text-[10px] text-muted">
+                          {new Intl.DateTimeFormat("es-AR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }).format(new Date(conversation.last_activity_at))}
+                        </span>
+                      </span>
                     </span>
-                    <span className="mt-1 block truncate text-xs text-muted">
-                      {conversation.patient?.email ?? "Sin email"}
+                    <span className="mt-4 flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
+                      <span className="flex items-center gap-1 text-[10px] text-green-text">
+                        <LockKeyhole className="size-3" />
+                        Contenido cifrado
+                      </span>
+                      <span className="text-[10px] font-semibold text-green-text">
+                        {isSelected ? "Chat abierto" : "Abrir chat"}
+                      </span>
                     </span>
-                  </span>
-                  <span className="shrink-0 text-[10px] text-muted">
-                    {new Intl.DateTimeFormat("es-AR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }).format(new Date(conversation.last_activity_at))}
-                  </span>
-                </span>
-                <span className="mt-2 flex items-center gap-1 text-[10px] text-green-text">
-                  <LockKeyhole className="size-3" />
-                  Contenido cifrado
-                </span>
-              </button>
-            ))}
+                  </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleConversationNotifications(conversation.id)}
+                      className="btn-outline btn-sm"
+                      aria-pressed={notificationPreferences[conversation.id] !== false}
+                    >
+                      {notificationPreferences[conversation.id] === false ? (
+                        <BellOff className="size-3.5" />
+                      ) : (
+                        <Bell className="size-3.5" />
+                      )}
+                      {notificationPreferences[conversation.id] === false
+                        ? "Activar emergentes"
+                        : "Desactivar emergentes"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteConversation(conversation)}
+                      disabled={deletingId === conversation.id}
+                      className="btn-ghost btn-sm text-rose-700 disabled:opacity-50"
+                    >
+                      {deletingId === conversation.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                      Borrar chat
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
-          <div className="p-8 text-center">
+          <div className="card p-8 text-center">
             <MessageCircle className="mx-auto size-7 text-muted/60" />
             <p className="mt-3 text-sm font-semibold text-ink">Sin chats activos</p>
             <p className="mt-1 text-xs text-muted">
@@ -322,7 +607,7 @@ export function AdminSupportChats({
           <div className="card grid min-h-72 place-items-center p-8 text-center">
             <div>
               <MessageCircle className="mx-auto size-8 text-muted/60" />
-              <p className="mt-3 font-semibold text-ink">Elegí un chat</p>
+              <p className="mt-3 font-semibold text-ink">Elegí un mosaico para abrir un chat</p>
               <p className="mt-1 text-xs text-muted">
                 Los mensajes se descifran solo en este dispositivo.
               </p>

@@ -148,7 +148,7 @@ export function AdminSupportRequestsManager({
                   className="btn-ghost btn-sm text-rose-700"
                 >
                   <Trash2 className="size-3.5" />
-                  Eliminar
+                  Borrar solicitud
                 </button>
               </div>
             </article>

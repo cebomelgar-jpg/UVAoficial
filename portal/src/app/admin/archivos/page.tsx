@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, FileText, ShieldCheck } from "lucide-react";
+import { FileText, ShieldCheck } from "lucide-react";
+import { AdminPatientFiles } from "@/components/admin/admin-patient-files";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { getAdminPatientDocuments } from "@/lib/data";
-import { DOCUMENT_LABELS } from "@/lib/documents";
-import { formatDate, formatFileSize } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Archivos compartidos",
@@ -14,6 +13,26 @@ export const metadata: Metadata = {
 export default async function AdminFilesPage() {
   await requireAdmin();
   const documents = await getAdminPatientDocuments();
+  const patientDocuments = new Map<string, {
+    id: string;
+    fullName: string;
+    email: string | null;
+    documents: typeof documents;
+  }>();
+
+  for (const document of documents) {
+    const patient = patientDocuments.get(document.user_id);
+    if (patient) {
+      patient.documents.push(document);
+    } else {
+      patientDocuments.set(document.user_id, {
+        id: document.user_id,
+        fullName: document.patient.full_name,
+        email: document.patient.email,
+        documents: [document],
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -39,52 +58,7 @@ export default async function AdminFilesPage() {
       </div>
 
       {documents.length ? (
-        <section className="grid gap-4 xl:grid-cols-2" aria-label="Archivos de pacientes">
-          {documents.map((document) => (
-            <article key={document.id} className="card p-5 sm:p-6">
-              <div className="flex items-start gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-mint/25 text-green-text">
-                  <FileText className="size-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink">
-                    {DOCUMENT_LABELS[document.document_type]}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-muted">
-                    {document.patient.full_name}
-                    {document.patient.email ? ` · ${document.patient.email}` : ""}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-ink/10 bg-white/60 p-4">
-                <p className="truncate text-xs font-medium text-ink" title={document.file_name}>
-                  {document.file_name}
-                </p>
-                <p className="mt-1 text-[11px] text-muted">
-                  {formatFileSize(document.file_size)} · Actualizado el{" "}
-                  {formatDate(document.updated_at)}
-                </p>
-                {document.signed_url ? (
-                  <a
-                    href={document.signed_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-outline btn-sm mt-3"
-                  >
-                    <Download className="size-3.5" />
-                    Descargar archivo
-                  </a>
-                ) : (
-                  <p className="mt-3 text-xs text-rose-700">
-                    No pudimos generar un enlace de descarga. Recargá la página
-                    para intentarlo nuevamente.
-                  </p>
-                )}
-              </div>
-            </article>
-          ))}
-        </section>
+        <AdminPatientFiles patients={[...patientDocuments.values()]} />
       ) : (
         <div className="card p-10 text-center">
           <FileText className="mx-auto size-8 text-muted/60" />

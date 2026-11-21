@@ -148,3 +148,26 @@ export async function saveOrderNotesAction(
   revalidatePath("/admin/pedidos");
   return { ok: true };
 }
+
+export async function deleteOrderAction(orderId: string): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(orderId);
+  if (!parsed.success) {
+    return { ok: false, error: "Pedido inválido." };
+  }
+
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.from("orders").delete().eq("id", parsed.data);
+
+  if (error) {
+    console.error("[orders] No se pudo borrar el pedido.", error.message);
+    return { ok: false, error: "No pudimos borrar el pedido. Intentá nuevamente." };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/admin/analiticas");
+  revalidatePath("/portal/pedidos");
+  revalidatePath(`/portal/pedidos/${parsed.data}`);
+  return { ok: true };
+}

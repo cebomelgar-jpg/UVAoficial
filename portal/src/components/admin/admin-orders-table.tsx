@@ -16,6 +16,7 @@ import {
   Save,
   Search,
   StickyNote,
+  Trash2,
   X,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
@@ -24,6 +25,7 @@ import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/order-stat
 import { ProductImage } from "@/components/catalog/product-image";
 import { useToast } from "@/components/providers/toast-provider";
 import {
+  deleteOrderAction,
   saveOrderNotesAction,
   updateOrderStatusAction,
 } from "@/lib/actions/orders";
@@ -67,6 +69,9 @@ export function AdminOrdersTable({
     }
     return null;
   });
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const counts = useMemo(() => {
     const result: Record<Filter, number> = {
@@ -109,6 +114,38 @@ export function AdminOrdersTable({
     () => orders.find((order) => order.id === selectedId) ?? null,
     [orders, selectedId],
   );
+
+  async function deleteOrder(order: AdminOrder) {
+    if (
+      !window.confirm(
+        `¿Borrar definitivamente el pedido ${formatOrderNumber(order.order_number)} de ${order.patient_name}? También se borrarán sus productos asociados.`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingId(order.id);
+    try {
+      const result = await deleteOrderAction(order.id);
+      if (!result.ok) {
+        toast({
+          title: "No se pudo borrar el pedido",
+          description: result.error,
+          variant: "error",
+        });
+        return;
+      }
+
+      if (selectedId === order.id) setSelectedId(null);
+      toast({ title: "Pedido borrado" });
+      router.refresh();
+    } catch (error) {
+      console.error("[admin/orders] No se pudo borrar el pedido.", error);
+      toast({ title: "Error inesperado al borrar el pedido", variant: "error" });
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   function exportCsv() {
     const headers = [
@@ -268,6 +305,8 @@ export function AdminOrdersTable({
                 key={order.id}
                 order={order}
                 onOpen={() => setSelectedId(order.id)}
+                onDelete={() => void deleteOrder(order)}
+                deleting={deletingId === order.id}
               />
             ))}
           </tbody>
@@ -294,7 +333,12 @@ export function AdminOrdersTable({
         size="xl"
       >
         {selected ? (
-          <AdminOrderDetail key={selected.id} order={selected} />
+          <AdminOrderDetail
+            key={selected.id}
+            order={selected}
+            onDelete={() => void deleteOrder(selected)}
+            deleting={deletingId === selected.id}
+          />
         ) : null}
       </Dialog>
     </div>
@@ -304,9 +348,13 @@ export function AdminOrdersTable({
 function OrderRow({
   order,
   onOpen,
+  onDelete,
+  deleting,
 }: {
   order: AdminOrder;
   onOpen: () => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -505,13 +553,35 @@ function OrderRow({
           >
             <MessageCircle className="size-3.5" />
           </a>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            className="rounded-lg p-1.5 text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+            aria-label={`Borrar pedido ${order.order_number}`}
+            title="Borrar pedido"
+          >
+            {deleting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="size-3.5" />
+            )}
+          </button>
         </div>
       </td>
     </tr>
   );
 }
 
-function AdminOrderDetail({ order }: { order: AdminOrder }) {
+function AdminOrderDetail({
+  order,
+  onDelete,
+  deleting,
+}: {
+  order: AdminOrder;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [notes, setNotes] = useState(order.admin_notes ?? "");
@@ -685,6 +755,19 @@ function AdminOrderDetail({ order }: { order: AdminOrder }) {
       </div>
 
       <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-4">
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting}
+          className="btn-ghost btn-sm text-rose-700"
+        >
+          {deleting ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="size-3.5" />
+          )}
+          Borrar pedido
+        </button>
         <a
           href={whatsappUrl(
             `Hola ${order.patient_name}, te escribimos por tu pedido ${formatOrderNumber(order.order_number)} de Un Viaje Astral.`,

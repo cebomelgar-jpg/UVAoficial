@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LockKeyhole, MessageCircle, X } from "lucide-react";
 import {
@@ -10,6 +11,10 @@ import {
   getSupportPublicKey,
 } from "@/lib/support-chat-crypto";
 import { createClient } from "@/lib/supabase/client";
+import {
+  isSupportNotificationEnabled,
+  subscribeSupportNotificationPreferences,
+} from "@/lib/support-notification-preferences";
 import type { ProfileRole, SupportChatMessage, SupportConversation } from "@/lib/types";
 
 type ConversationReference = Pick<
@@ -57,8 +62,13 @@ export function SupportMessageNotifications({
   role: ProfileRole;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeConversationId = searchParams.get("conversation");
   const [toast, setToast] = useState<ChatToast | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const currentRouteRef = useRef({ pathname, activeConversationId });
+  currentRouteRef.current = { pathname, activeConversationId };
 
   useEffect(() => {
     let active = true;
@@ -104,6 +114,16 @@ export function SupportMessageNotifications({
 
       const expectedPeerId = role === "admin" ? conversation.patient_id : conversation.admin_id;
       if (message.sender_id !== expectedPeerId) return;
+      const currentRoute = currentRouteRef.current;
+      if (
+        !isSupportNotificationEnabled(userId, conversation.id) ||
+        (role === "patient" && currentRoute.pathname === "/portal/ayuda") ||
+        (role === "admin" &&
+          currentRoute.pathname === "/admin/mensajes" &&
+          currentRoute.activeConversationId === conversation.id)
+      ) {
+        return;
+      }
 
       let preview = "Nuevo mensaje cifrado. Abrí el chat para leerlo.";
       try {
@@ -202,8 +222,16 @@ export function SupportMessageNotifications({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "support_conversations" },
-        (payload: { new: Record<string, unknown> }) => {
-          if (payload.new) void refreshConversation(payload.new);
+        (payload: {
+          eventType: string;
+          new: Record<string, unknown>;
+          old: Record<string, unknown>;
+        }) => {
+          if (payload.eventType === "DELETE" && typeof payload.old.id === "string") {
+            conversations.delete(payload.old.id);
+          } else if (payload.new) {
+            void refreshConversation(payload.new);
+          }
         },
       )
       .subscribe((status: string) => {
@@ -238,6 +266,32 @@ export function SupportMessageNotifications({
       void supabase.removeChannel(channel);
     };
   }, [role, supabase, userId]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSupportNotificationPreferences(userId, () => {
+      if (toast && !isSupportNotificationEnabled(userId, toast.conversationId)) {
+        if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+        setToast(null);
+      }
+    });
+    if (toast && !isSupportNotificationEnabled(userId, toast.conversationId)) {
+      setToast(null);
+    }
+    return unsubscribe;
+  }, [toast, userId]);
+
+  useEffect(() => {
+    if (
+      toast &&
+      ((role === "patient" && pathname === "/portal/ayuda") ||
+        (role === "admin" &&
+          pathname === "/admin/mensajes" &&
+          activeConversationId === toast.conversationId))
+    ) {
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+      setToast(null);
+    }
+  }, [activeConversationId, pathname, role, toast]);
 
   if (!toast) return null;
 

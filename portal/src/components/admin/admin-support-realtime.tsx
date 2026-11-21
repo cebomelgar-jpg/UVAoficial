@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/providers/toast-provider";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 export function AdminSupportRealtime() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     let active = true;
@@ -30,7 +33,43 @@ export function AdminSupportRealtime() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "support_contact_requests" },
-        scheduleRefresh,
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          if (payload.eventType === "INSERT") {
+            toast({
+              title: "Nueva solicitud recibida",
+              description: "Problema, ayuda o producto especial.",
+            });
+          }
+          scheduleRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          if (payload.eventType === "INSERT") {
+            toast({
+              title: "Nuevo perfil registrado",
+              description: "Hay una cuenta esperando revisión.",
+              variant: "info",
+            });
+          }
+          scheduleRefresh();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "adhesion_applications" },
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            toast({
+              title: "Actualización de adhesión",
+              description: "El recorrido de un solicitante cambió.",
+              variant: "info",
+            });
+          }
+          scheduleRefresh();
+        },
       )
       .subscribe((status: string) => {
         if (active && (status === "CHANNEL_ERROR" || status === "TIMED_OUT")) {
@@ -45,7 +84,7 @@ export function AdminSupportRealtime() {
       window.clearTimeout(refreshTimeout);
       void supabase.removeChannel(channel);
     };
-  }, [router, supabase]);
+  }, [router, supabase, toast]);
 
   return null;
 }

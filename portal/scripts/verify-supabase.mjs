@@ -202,6 +202,23 @@ if (documentsBucket.error) {
   if (documentsBucket.data.public) {
     fail("Bucket patient-documents", "debe ser privado");
   }
+  if (documentsBucket.data.file_size_limit !== 10 * 1024 * 1024) {
+    fail("Límite de patient-documents", "debe ser 10 MB");
+  } else {
+    ok("Límite de patient-documents", "10 MB");
+  }
+  const expectedMimeTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ];
+  const actualMimeTypes = [...(documentsBucket.data.allowed_mime_types ?? [])].sort();
+  if (JSON.stringify(actualMimeTypes) !== JSON.stringify(expectedMimeTypes)) {
+    fail("Formatos de patient-documents", "la lista MIME no coincide con los formatos permitidos");
+  } else {
+    ok("Formatos de patient-documents", "PDF, JPG, PNG y WebP");
+  }
 }
 
 const users = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });

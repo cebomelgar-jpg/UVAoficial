@@ -7,6 +7,7 @@ import type {
   AdminOrder,
   AnalyticsData,
   AnalyticsRange,
+  AdminPatientDocument,
   Branch,
   Order,
   OrderItem,
@@ -165,7 +166,9 @@ export async function getPatientDocuments(userId: string): Promise<{
     ((data ?? []) as PatientDocument[]).map(async (document) => {
       const { data: signed, error: signedError } = await supabase.storage
         .from("patient-documents")
-        .createSignedUrl(document.file_path, 60 * 10);
+        .createSignedUrl(document.file_path, 60 * 10, {
+          download: document.file_name,
+        });
 
       if (signedError) {
         console.error(
@@ -182,6 +185,57 @@ export async function getPatientDocuments(userId: string): Promise<{
   );
 
   return { documents, ready: true };
+}
+
+export async function getAdminPatientDocuments(): Promise<AdminPatientDocument[]> {
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase
+    .from("patient_documents")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (error) logAndThrow("No pudimos cargar los archivos compartidos.", error);
+  const documents = (rows ?? []) as PatientDocument[];
+  const patientIds = [...new Set(documents.map((document) => document.user_id))];
+  const { data: profiles, error: profileError } = patientIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", patientIds)
+    : { data: [], error: null };
+
+  if (profileError) {
+    logAndThrow("No pudimos cargar los titulares de los archivos.", profileError);
+  }
+
+  const profileById = new Map(
+    (profiles ?? []).map((profile) => [profile.id, profile]),
+  );
+  return Promise.all(
+    documents.map(async (document) => {
+      const { data: signed, error: signedError } = await supabase.storage
+        .from("patient-documents")
+        .createSignedUrl(document.file_path, 5 * 60, {
+          download: document.file_name,
+        });
+
+      if (signedError) {
+        console.error(
+          "[data] No pudimos generar el enlace temporal del archivo.",
+          signedError.message,
+        );
+      }
+
+      return {
+        ...document,
+        signed_url: signed?.signedUrl ?? null,
+        patient: profileById.get(document.user_id) ?? {
+          full_name: "Paciente",
+          email: null,
+        },
+      };
+    }),
+  );
 }
 
 export async function getAdminOrders(

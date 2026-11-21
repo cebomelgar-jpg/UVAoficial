@@ -13,16 +13,16 @@ import {
 } from "lucide-react";
 import {
   deleteDocumentAction,
-  saveDocumentAction,
+  uploadDocumentAction,
 } from "@/lib/actions/documents";
 import {
   DOCUMENT_ACCEPT,
   DOCUMENT_MIME_EXTENSIONS,
+  hasValidDocumentSignature,
   MAX_DOCUMENT_BYTES,
   type PatientDocumentType,
 } from "@/lib/documents";
 import { formatDate, formatFileSize } from "@/lib/format";
-import { createClient } from "@/lib/supabase/client";
 import type { ActionState, PatientDocumentWithUrl } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -31,14 +31,12 @@ export function DocumentUploadCard({
   title,
   description,
   document: currentDocument,
-  userId,
   ready,
 }: {
   type: PatientDocumentType;
   title: string;
   description: string;
   document: PatientDocumentWithUrl | null;
-  userId: string;
   ready: boolean;
 }) {
   const router = useRouter();
@@ -83,35 +81,27 @@ export function DocumentUploadCard({
       setUploadError("El archivo no puede superar los 10 MB.");
       return;
     }
-
-    setUploading(true);
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    if (
+      fileExtension !== extension &&
+      !(file.type === "image/jpeg" && fileExtension === "jpeg")
+    ) {
+      setUploadError("La extensión del archivo no coincide con su formato.");
+      return;
+    }
 
     try {
-      const supabase = createClient();
-      const filePath = `${userId}/${type}.${extension}`;
-
-      const { error: storageError } = await supabase.storage
-        .from("patient-documents")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: true,
-          contentType: file.type,
-        });
-
-      if (storageError) {
-        setUploadError(
-          "No pudimos subir el archivo. Revisá tu conexión e intentá nuevamente.",
-        );
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!hasValidDocumentSignature(file.type, bytes)) {
+        setUploadError("El contenido no coincide con el formato declarado. No se subió.");
         return;
       }
 
-      const result = await saveDocumentAction({
-        documentType: type,
-        filePath,
-        fileName: file.name,
-        mimeType: file.type,
-        fileSize: file.size,
-      });
+      setUploading(true);
+      const formData = new FormData();
+      formData.set("documentType", type);
+      formData.set("file", file);
+      const result = await uploadDocumentAction(formData);
 
       if (result.error) {
         setUploadError(result.error);
@@ -248,6 +238,8 @@ export function DocumentUploadCard({
             disabled={!ready || uploading}
             onChange={(event) => {
               setSelectedName(event.target.files?.[0]?.name ?? null);
+              setUploadError(null);
+              setUploadMessage(null);
             }}
           />
         </label>

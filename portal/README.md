@@ -122,6 +122,7 @@ Las migraciones están en `supabase/migrations/` y deben ejecutarse **en orden**
 10. `202611200001_profile_approval_hardening.sql` — deniega por defecto el acceso de perfiles sin estado y elimina las copias recuperables de contraseñas.
 11. `202611200002_profiles_realtime.sql` — publica inserciones y cambios de perfiles para actualizar el panel administrativo en tiempo real.
 12. `202611200003_secure_support_chat.sql` — agrega chat E2E, acceso RLS por participante, expiración y borrado periódico de mensajes, más solicitudes internas de ayuda con retención máxima de 7 días y actualizaciones Realtime.
+13. `202611200004_secure_patient_document_uploads.sql` — limita las escrituras del bucket privado a acciones de servidor con validación de firma de archivo y solo permite leer objetos asociados a documentos registrados.
 
 **Opción A: SQL Editor**
 
@@ -129,7 +130,7 @@ Abrí el SQL Editor de Supabase y ejecutá el contenido completo de cada archivo
 
 Para una aplicación nueva, también podés abrir `supabase/apply-all.sql`, copiar todo su contenido y ejecutarlo. Incluye todas las migraciones en orden dentro de una transacción; si una sentencia falla, no se aplica ningún cambio.
 
-Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql`, `202611200001_profile_approval_hardening.sql`, `202611200002_profiles_realtime.sql` y `202611200003_secure_support_chat.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación.
+Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql`, `202611200001_profile_approval_hardening.sql`, `202611200002_profiles_realtime.sql`, `202611200003_secure_support_chat.sql` y `202611200004_secure_patient_document_uploads.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación.
 
 La migración de chat habilita `pg_cron` para borrar mensajes cifrados vencidos cada minuto. El chat usa ECDH P-256 y AES-GCM en el navegador; el servidor solo almacena texto cifrado. Cada cuenta vincula su única clave privada al almacenamiento local del navegador y no se sincroniza ni se puede recuperar; para descifrar, usá siempre ese navegador y no borres sus datos. El chat y el contenido local se limpian después de 60 minutos sin mensajes. Las solicitudes sin sesión guardan solo nombre, email, teléfono y motivo, no texto libre ni contraseñas; aparecen en tiempo real en el panel y se eliminan a los 7 días.
 
@@ -232,12 +233,14 @@ En `/portal/documentacion` cada paciente puede subir:
 - **Certificado de trámite habilitado** vigente.
 - **Credencial REPROCANN** vigente, con número de registro y vencimiento visibles.
 
-Se aceptan PDF, JPG, PNG y WebP de hasta 10 MB. Se guarda un archivo vigente por tipo; al reemplazarlo se elimina el anterior. El bucket `patient-documents` es privado: la visualización usa enlaces firmados temporales y solo el paciente titular o un administrador pueden leer los archivos.
+Se aceptan PDF, JPG, PNG y WebP de hasta 10 MB. Una acción de servidor valida tipo declarado, extensión y firma binaria antes de escribir en Storage; las sesiones del navegador no tienen permisos de escritura al bucket. Se guarda un archivo vigente por tipo; al reemplazarlo se elimina el anterior. El bucket `patient-documents` es privado: la visualización usa enlaces firmados de descarga que vencen en 5 minutos y solo el paciente titular o un administrador pueden leer los archivos. Esta validación no es un antivirus ni garantiza detectar contenido malicioso embebido en un archivo válido.
 
 ## Panel de administración
 
 - `/admin`: resumen de 30 días, pedidos recientes, stock bajo y accesos rápidos, filtrable por sede.
 - `/admin/pedidos`: planilla de despacho con búsqueda, filtros, edición inline de estado y pago, notas internas, exportación CSV, impresión, actualización en tiempo real y columna de sede.
+- `/admin/archivos`: documentos compartidos por pacientes, con enlaces privados de descarga de corta duración.
+- `/admin/mensajes` y `/portal/ayuda`: chat cifrado con notificaciones flotantes y vista previa descifrada en el navegador.
 - `/admin/catalogo`: alta y edición de productos con sede obligatoria, stock inline, visibilidad, eliminación con confirmación y subida de imágenes.
 - `/admin/analiticas`: rangos de 7 días, 30 días y 12 meses, con ingresos, pedidos, ticket promedio, pacientes, estados, pagos, categorías y ranking de productos; filtrable por sede.
 
@@ -266,11 +269,12 @@ El detalle del pedido conserva nombre, precio y categoría del producto aunque l
 - **Precios y stock del servidor**: el checkout nunca confía en los totales del cliente. `create_order` valida producto activo, stock, precio y cantidades, y recalcula el total.
 - **RPCs `security definer`** con `search_path` fijo y comprobaciones explícitas de usuario y rol.
 - **Sesiones SSR** con cookies de Supabase y refresh en middleware. El middleware captura errores de configuración, red, cookies y consultas de rol en Edge Runtime; si Supabase no está disponible, las rutas privadas derivan a `/login?error=unavailable` en lugar de devolver un HTTP 500. Las respuestas que renuevan cookies incluyen `Cache-Control: private, no-store`.
-- **Storage**: bucket público de solo lectura para imágenes (`product-images`), con escritura exclusiva de administradores. La documentación usa el bucket privado `patient-documents`: cada paciente accede solo a su carpeta `<uid>/` y los administradores pueden leerla.
+- **Storage**: bucket público de solo lectura para imágenes (`product-images`), con escritura exclusiva de administradores. La documentación usa el bucket privado `patient-documents`: las escrituras pasan por validación del servidor, solo se leen documentos registrados y cada paciente ve sus propios archivos mientras que los administradores pueden leerlos todos.
 - **Cabeceras**: CSP, `X-Frame-Options`, `nosniff`, HSTS en producción y `Referrer-Policy`.
 - **No indexable**: metadata `noindex`, `robots.txt` con `Disallow: /` y cabecera `X-Robots-Tag`.
 - **Dependencias**: `npm audit` sin vulnerabilidades conocidas con Next `15.5.29`. `package.json` incluye un override de PostCSS `^8.5.31` para corregir la versión transitiva de Next 15; revisarlo al actualizar Next.
 - **Datos sensibles**: las notas terapéuticas son información personal. Limitá el acceso de administradores, no exportes datos innecesariamente y rotá claves si se comprometen.
+- **Documentos de pacientes**: se valida la firma binaria en el servidor y el Storage bloquea escrituras directas desde el navegador. Esto no sustituye un antivirus; verificá los archivos descargados antes de abrirlos.
 
 ### Checklist antes de producción
 

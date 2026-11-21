@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import {
   Clock3,
   FileCheck2,
+  FileWarning,
   LockKeyhole,
   MessageCircle,
   ShieldCheck,
@@ -54,7 +55,6 @@ export default async function DocumentsPage() {
               documents.find((document) => document.document_type === type) ??
               null
             }
-            userId={profile.id}
             ready={ready}
           />
         ))}
@@ -86,6 +86,14 @@ export default async function DocumentsPage() {
               <span>
                 Solo el paciente titular y el equipo administrativo pueden
                 consultar la documentación.
+              </span>
+            </li>
+            <li className="flex gap-2.5">
+              <FileWarning className="mt-0.5 size-3.5 shrink-0 text-green-text" />
+              <span>
+                El servidor comprueba el tipo y la firma real del archivo antes
+                de guardarlo. Se entrega como descarga privada; esto reduce el
+                riesgo, pero no sustituye un análisis antivirus externo.
               </span>
             </li>
           </ul>

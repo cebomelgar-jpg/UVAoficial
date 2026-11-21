@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Clock3,
@@ -184,6 +185,8 @@ export function AdminSupportChats({
   conversations: SupportConversation[];
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
+  const requestedConversationId = searchParams.get("conversation");
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [keyReady, setKeyReady] = useState(false);
@@ -199,6 +202,15 @@ export function AdminSupportChats({
   }
 
   useEffect(() => setConversations(initialConversations), [initialConversations]);
+
+  useEffect(() => {
+    if (
+      requestedConversationId &&
+      conversations.some((conversation) => conversation.id === requestedConversationId)
+    ) {
+      setSelectedId(requestedConversationId);
+    }
+  }, [conversations, requestedConversationId]);
 
   useEffect(() => {
     let active = true;

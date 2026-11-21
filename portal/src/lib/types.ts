@@ -211,6 +211,10 @@ export type PatientDocumentWithUrl = PatientDocument & {
   signed_url: string | null;
 };
 
+export type AdminPatientDocument = PatientDocumentWithUrl & {
+  patient: Pick<Profile, "full_name" | "email">;
+};
+
 export type ActionState = {
   error?: string;
   message?: string;

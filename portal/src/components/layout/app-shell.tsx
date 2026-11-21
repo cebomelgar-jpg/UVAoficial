@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { SupportMessageNotifications } from "@/components/support/support-message-notifications";
 import { useCart } from "@/components/providers/cart-provider";
 import { signOutAction } from "@/lib/actions/auth";
 import type { Profile } from "@/lib/types";
@@ -89,6 +90,7 @@ export function AppShell({
     { href: "/admin", label: "Resumen", icon: <LayoutDashboard className="size-4" />, exact: true },
     { href: "/admin/pedidos", label: "Pedidos", icon: <ClipboardList className="size-4" /> },
     { href: "/admin/perfiles", label: "Perfiles", icon: <Users className="size-4" /> },
+    { href: "/admin/archivos", label: "Archivos", icon: <FileText className="size-4" /> },
     {
       href: "/admin/mensajes",
       label: "Chats",
@@ -207,7 +209,7 @@ export function AppShell({
     <div className="portal-canvas min-h-screen">
       <div className="pointer-events-none fixed inset-0 grain" />
 
-      <header className="no-print z-40 flex items-center justify-between gap-3 border-b border-ink/10 bg-paper/85 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="no-print sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-ink/10 bg-paper/90 px-4 py-3 shadow-sm backdrop-blur lg:hidden">
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
@@ -268,6 +270,7 @@ export function AppShell({
           {children}
         </main>
       </div>
+      <SupportMessageNotifications userId={profile.id} role={profile.role} />
     </div>
   );
 }

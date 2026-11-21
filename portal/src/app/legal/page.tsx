@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { CONTACT } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Condiciones y privacidad",
@@ -79,6 +78,14 @@ export default function LegalPage() {
                 el conjunto de pedidos para gestionar stock, pagos y despacho.
                 La base de datos aplica reglas de seguridad a nivel de fila.
               </p>
+              <p className="mt-2">
+                Los chats de ayuda son cifrados de extremo a extremo desde el
+                navegador: el servidor almacena mensajes cifrados y no conserva
+                una copia de lectura. Solo la cuenta del paciente y el
+                dispositivo autorizado de administración pueden descifrarlos.
+                Las claves privadas se conservan en el almacenamiento local del
+                navegador y no se pueden recuperar si se borran sus datos.
+              </p>
             </section>
 
             <section>
@@ -88,13 +95,29 @@ export default function LegalPage() {
                 conexiones cifradas. Conservamos el historial de pedidos
                 mientras sea necesario para la operación y las obligaciones
                 aplicables. Podés solicitar la eliminación de tu cuenta
-                escribiendo a {CONTACT.email}; algunos registros contables o de
-                seguridad pueden conservarse por un plazo razonable.
+                desde la sección de ayuda del portal. Algunos registros
+                contables o de seguridad pueden conservarse por un plazo
+                razonable.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl text-ink">6. Pagos</h2>
+              <h2 className="text-xl text-ink">6. Chats y solicitudes de ayuda</h2>
+              <p className="mt-2">
+                Los mensajes cifrados se eliminan automáticamente tras 60
+                minutos sin actividad; no se mantiene historial. No uses el
+                chat para urgencias médicas ni envíes contraseñas. Si no podés
+                ingresar, podés dejar una solicitud interna con nombre, email,
+                teléfono y motivo, sin incluir un mensaje libre. El
+                administrador la atiende desde el panel y los datos de contacto
+                se eliminan a los 7 días como máximo o antes por solicitud.
+                Nunca pedimos tu contraseña actual ni enviamos solicitudes a una
+                casilla de correo.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl text-ink">7. Pagos</h2>
               <p className="mt-2">
                 El portal no procesa pagos con tarjeta. Los pedidos se abonan en
                 efectivo o por transferencia bancaria según las instrucciones
@@ -104,20 +127,21 @@ export default function LegalPage() {
             </section>
 
             <section>
-              <h2 className="text-xl text-ink">7. Tus derechos</h2>
+              <h2 className="text-xl text-ink">8. Tus derechos</h2>
               <p className="mt-2">
                 Podés solicitar acceso, rectificación o eliminación de tus datos
-                personales, o pedir la baja del portal, escribiendo a{" "}
-                <a className="link-underline" href={`mailto:${CONTACT.email}`}>
-                  {CONTACT.email}
-                </a>{" "}
-                o por WhatsApp al {CONTACT.whatsapp}. Responderemos dentro de un
-                plazo razonable.
+                personales desde el chat de ayuda cifrado del portal. Si no
+                podés ingresar, enviá una solicitud interna desde{" "}
+                <Link href="/ayuda/solicitar" className="link-underline">
+                  Solicitar ayuda
+                </Link>
+                . Las solicitudes quedan disponibles únicamente para el
+                administrador y se eliminan automáticamente a los 7 días.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl text-ink">8. Cambios</h2>
+              <h2 className="text-xl text-ink">9. Cambios</h2>
               <p className="mt-2">
                 Podemos actualizar estas condiciones para reflejar cambios
                 operativos o legales. La versión vigente estará siempre

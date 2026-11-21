@@ -10,7 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { MAIN_SITE_URL, whatsappUrl } from "@/lib/config";
+import { MAIN_SITE_URL } from "@/lib/config";
 
 const categories = [
   {
@@ -304,15 +304,13 @@ export default function LandingPage() {
                 Ingresar al portal
                 <ArrowRight className="size-4" />
               </Link>
-              <a
-                href={whatsappUrl("Hola, quiero registrarme en el portal de pacientes de Un Viaje Astral.")}
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                href="/ayuda/solicitar?motivo=general"
                 className="btn-outline"
               >
                 <MessageCircle className="size-4" />
-                WhatsApp
-              </a>
+                Solicitar ayuda
+              </Link>
             </div>
           </div>
         </section>
@@ -336,14 +334,9 @@ export default function LandingPage() {
             <Link href="/registro" className="transition hover:text-ink">
               Crear cuenta
             </Link>
-            <a
-              href={whatsappUrl()}
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-ink"
-            >
+            <Link href="/ayuda/solicitar" className="transition hover:text-ink">
               Contacto
-            </a>
+            </Link>
           </div>
         </div>
         <div className="mx-auto w-full max-w-7xl px-5 pb-8 text-[10px] leading-relaxed text-muted/80 sm:px-8">

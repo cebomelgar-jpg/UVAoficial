@@ -12,10 +12,10 @@ const errorMessages: Record<string, string> = {
   callback:
     "El enlace de confirmación no es válido o venció. Probá iniciar sesión o registrarte nuevamente.",
   profile:
-    "Tu cuenta existe pero no encontramos tu perfil. Escribinos para resolverlo.",
+    "Tu cuenta existe pero no encontramos tu perfil. Enviá una solicitud interna de ayuda.",
   forbidden: "No tenés permisos para acceder a esa sección.",
   unavailable:
-    "No pudimos verificar tu sesión en este momento. Esperá unos segundos y volvé a intentar. Si el problema continúa, escribinos por WhatsApp.",
+    "No pudimos verificar tu sesión en este momento. Esperá unos segundos y volvé a intentar. Si el problema continúa, enviá una solicitud interna de ayuda.",
 };
 
 function getErrorMessage(error: string | undefined) {
@@ -50,6 +50,14 @@ export default async function LoginPage({
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <p>{errorMessage}</p>
         </div>
+      ) : null}
+      {params.error === "profile" || params.error === "unavailable" ? (
+        <Link
+          href="/ayuda/solicitar"
+          className="mt-3 inline-flex text-xs font-semibold text-green-text hover:underline"
+        >
+          Solicitar ayuda al administrador
+        </Link>
       ) : null}
 
       {params.error === "profile" ? (

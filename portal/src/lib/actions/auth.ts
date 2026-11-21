@@ -68,7 +68,7 @@ export async function loginAction(
     if (error.message.toLowerCase().includes("email not confirmed")) {
       return {
         error:
-          "Tu email todavía no está confirmado. Revisá tu bandeja de entrada o escribinos por WhatsApp para recibir un nuevo enlace.",
+          "Tu email todavía no está confirmado. Revisá el enlace que recibiste o enviá una solicitud interna de ayuda.",
       };
     }
     return { error: "Email o contraseña incorrectos." };
@@ -129,7 +129,7 @@ export async function registerAction(
     if (error.message.toLowerCase().includes("already registered")) {
       return {
         error:
-          "Ese email ya tiene una cuenta. Probá iniciar sesión o escribinos por WhatsApp para recuperar el acceso.",
+          "Ese email ya tiene una cuenta. Probá iniciar sesión o enviá una solicitud interna para recuperar el acceso.",
       };
     }
     return {

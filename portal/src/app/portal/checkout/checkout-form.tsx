@@ -194,7 +194,7 @@ export function CheckoutForm({ profile }: { profile: Profile }) {
                 <ChoiceCard
                   icon={<Store className="size-4" />}
                   title="Retiro en sede"
-                  description="Coordinamos día y horario por WhatsApp."
+                  description="Coordinamos día y horario desde Ayuda y chat."
                   selected={fulfillmentMethod === "pickup"}
                   onSelect={() => setFulfillmentMethod("pickup")}
                 />
@@ -299,7 +299,7 @@ export function CheckoutForm({ profile }: { profile: Profile }) {
                 ) : null}
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-muted">
-                Enviá el comprobante por WhatsApp para que el equipo confirme el
+                Coordiná la validación del comprobante desde Ayuda y chat para que el equipo confirme el
                 pago. El pedido queda pendiente hasta la validación.
               </p>
             </div>
@@ -307,8 +307,9 @@ export function CheckoutForm({ profile }: { profile: Profile }) {
             <div className="mt-4 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
               <MessageCircle className="mt-0.5 size-4 shrink-0" />
               <p>
-                Los datos bancarios se coordinan por WhatsApp. Elegí
-                transferencia y escribinos para recibirlos antes de abonar.
+                Los datos bancarios se coordinan desde Ayuda y chat. Elegí
+                transferencia y consultá al administrador desde Ayuda y chat
+                antes de abonar.
               </p>
             </div>
           )}

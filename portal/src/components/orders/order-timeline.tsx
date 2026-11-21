@@ -42,7 +42,7 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
             {ORDER_STATUS_LABELS.cancelled}
           </p>
           <p className="mt-0.5 text-xs leading-relaxed text-rose-800/80">
-            Este pedido fue cancelado. Si tenés dudas, escribinos por WhatsApp.
+            Este pedido fue cancelado. Si tenés dudas, contactá al administrador desde Ayuda y chat.
           </p>
         </div>
       </div>

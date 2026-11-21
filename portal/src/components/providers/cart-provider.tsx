@@ -119,7 +119,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!product.active || product.stock <= 0) {
         toast({
           title: "Producto sin stock",
-          description: "Consultá por WhatsApp o elegí otra opción del catálogo.",
+          description: "Consultá al administrador desde Ayuda y chat o elegí otra opción del catálogo.",
           variant: "info",
         });
         return false;

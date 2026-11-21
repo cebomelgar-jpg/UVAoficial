@@ -21,7 +21,6 @@ import { getBranches, getPatientOverview } from "@/lib/data";
 import { requireProfile } from "@/lib/auth";
 import { findBranchById } from "@/lib/branches";
 import { formatARS, formatDate, formatOrderNumber, CATEGORY_LABELS } from "@/lib/format";
-import { whatsappUrl } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Resumen",
@@ -52,15 +51,13 @@ export default async function PortalDashboardPage({
               <Leaf className="size-4" />
               Ver catálogo
             </Link>
-            <a
-              href={whatsappUrl("Hola, necesito ayuda con mi cuenta del portal de pacientes.")}
-              target="_blank"
-              rel="noreferrer"
+            <Link
+              href="/portal/ayuda"
               className="btn-outline"
             >
               <MessageCircle className="size-4" />
-              Escribir al equipo
-            </a>
+              Contactar al administrador
+            </Link>
           </>
         }
       />
@@ -206,17 +203,15 @@ export default async function PortalDashboardPage({
             className="mt-5"
             icon={<Leaf className="size-6" />}
             title="Catálogo en preparación"
-            description="El administrador todavía no publicó productos con precio y stock. Mientras tanto, podés escribirnos por WhatsApp."
+            description="El administrador todavía no publicó productos con precio y stock. Mientras tanto, podés escribirle desde Ayuda y chat."
             action={
-              <a
-                href={whatsappUrl("Hola, quisiera consultar por los productos disponibles.")}
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                href="/portal/ayuda"
                 className="btn-outline btn-sm"
               >
                 <MessageCircle className="size-3.5" />
-                Consultar disponibilidad
-              </a>
+                Consultar al administrador
+              </Link>
             }
           />
         ) : (

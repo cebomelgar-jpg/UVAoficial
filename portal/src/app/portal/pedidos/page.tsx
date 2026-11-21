@@ -21,7 +21,6 @@ import {
   FULFILLMENT_LABELS,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/format";
-import { whatsappUrl } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Mis pedidos",
@@ -145,15 +144,13 @@ export default async function OrdersPage() {
           ¿Necesitás modificar un pedido pendiente? Escribinos antes de que el
           equipo lo confirme.
         </p>
-        <a
-          href={whatsappUrl("Hola, necesito consultar por un pedido del portal.")}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          href="/portal/ayuda"
           className="inline-flex items-center gap-1.5 font-semibold text-green-text hover:underline"
         >
           <MessageCircle className="size-3.5" />
           Contactar al equipo
-        </a>
+        </Link>
       </div>
     </div>
   );

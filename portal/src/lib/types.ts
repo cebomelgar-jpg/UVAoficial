@@ -33,6 +33,35 @@ export type Profile = {
 
 export type AdminProfile = Profile;
 
+export type SupportConversation = {
+  id: string;
+  patient_id: string;
+  admin_id: string;
+  created_at: string;
+  last_activity_at: string;
+  expires_at: string;
+  patient?: Pick<Profile, "full_name" | "email" | "phone"> | null;
+};
+
+export type SupportChatMessage = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  ciphertext: string;
+  iv: string;
+  created_at: string;
+};
+
+export type SupportContactRequest = {
+  id: string;
+  request_type: "password" | "privacy" | "general";
+  full_name: string;
+  email: string;
+  phone: string;
+  status: "pending" | "handled";
+  created_at: string;
+};
+
 export type ProductCategory = "flores" | "rosin_hash" | "vapes";
 
 export type Product = {

@@ -46,12 +46,14 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
           <label htmlFor="password" className="label">
             Contraseña
           </label>
-          <Link
-            href="/registro"
-            className="mb-2 text-[11px] font-medium text-green-text hover:underline"
-          >
-            ¿No tenés cuenta?
-          </Link>
+          <div className="mb-2 flex gap-3 text-[11px] font-medium">
+            <Link href="/ayuda/solicitar?motivo=password" className="text-green-text hover:underline">
+              ¿Olvidaste tu contraseña?
+            </Link>
+            <Link href="/registro" className="text-green-text hover:underline">
+              ¿No tenés cuenta?
+            </Link>
+          </div>
         </div>
         <div className="relative">
           <input
@@ -93,8 +95,8 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
       </button>
 
       <p className="text-center text-[11px] leading-relaxed text-muted">
-        Si olvidaste tu contraseña, escribinos por WhatsApp para recuperar el
-        acceso.
+        El administrador atenderá la solicitud de acceso desde el panel, sin
+        enviar un correo.
       </p>
     </form>
   );

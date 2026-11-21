@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { Check, Copy, Landmark, MessageCircle, ShieldCheck, Wallet } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/providers/toast-provider";
-import { BANK_DETAILS, whatsappUrl } from "@/lib/config";
+import { BANK_DETAILS } from "@/lib/config";
 import { formatARS, PAYMENT_METHOD_LABELS } from "@/lib/format";
 import type { PaymentMethod, PaymentStatus } from "@/lib/types";
 
@@ -85,7 +86,7 @@ export function PaymentInstructions({
         <div className="mt-3">
           <p className="text-xs leading-relaxed text-muted">
             Transferí <strong className="text-ink">{formatARS(total)}</strong> y
-            enviá el comprobante por WhatsApp para que el equipo valide el pago.
+            coordiná la validación del pago con el administrador desde Ayuda y chat.
           </p>
           <div className="mt-3 space-y-2">
             {BANK_DETAILS.alias ? (
@@ -118,23 +119,19 @@ export function PaymentInstructions({
         <div className="mt-3 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
           <MessageCircle className="mt-0.5 size-4 shrink-0" />
           <p>
-            Los datos bancarios se coordinan por WhatsApp. Escribinos para
-            recibirlos y transferir {formatARS(total)}.
+            Los datos bancarios se coordinan con el administrador desde Ayuda y
+            chat antes de transferir {formatARS(total)}.
           </p>
         </div>
       )}
 
-      <a
-        href={whatsappUrl(
-          `Hola, quiero coordinar el pago de un pedido de ${formatARS(total)}.`,
-        )}
-        target="_blank"
-        rel="noreferrer"
+      <Link
+        href="/portal/ayuda"
         className="btn-outline btn-sm mt-4 w-full"
       >
         <MessageCircle className="size-3.5" />
-        Coordinar por WhatsApp
-      </a>
+        Contactar al administrador
+      </Link>
     </div>
   );
 }

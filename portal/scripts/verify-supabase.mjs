@@ -65,17 +65,21 @@ try {
 }
 
 const tables = [
-  "branches",
-  "profiles",
-  "products",
-  "orders",
-  "order_items",
-  "patient_documents",
+  ["branches", "id"],
+  ["profiles", "id"],
+  ["products", "id"],
+  ["orders", "id"],
+  ["order_items", "id"],
+  ["patient_documents", "id"],
+  ["support_chat_keys", "user_id"],
+  ["support_conversations", "id"],
+  ["support_chat_messages", "id"],
+  ["support_contact_requests", "id"],
 ];
-for (const table of tables) {
+for (const [table, column] of tables) {
   const { count, error } = await admin
     .from(table)
-    .select("id", { count: "exact" })
+    .select(column, { count: "exact" })
     .limit(1);
 
   if (error) {
@@ -155,6 +159,18 @@ const functions = [
       p_order_id: "00000000-0000-0000-0000-000000000000",
       p_status: "pending",
       p_payment_status: "pending",
+    },
+  ],
+  ["primary_support_admin_id", {}],
+  ["open_support_conversation", {}],
+  ["reset_support_chat_key", {}],
+  [
+    "submit_support_contact_request",
+    {
+      p_request_type: "invalid",
+      p_full_name: "",
+      p_email: "",
+      p_phone: "",
     },
   ],
 ];

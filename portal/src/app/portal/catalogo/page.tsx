@@ -8,7 +8,6 @@ import { BranchBadge } from "@/components/ui/branch-badge";
 import { requireProfile } from "@/lib/auth";
 import { findBranch, findBranchById } from "@/lib/branches";
 import { getActiveProducts, getBranches } from "@/lib/data";
-import { whatsappUrl } from "@/lib/config";
 import type { ProductCategory } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -69,15 +68,13 @@ export default async function CatalogPage({
               : "El administrador todavía no publicó productos con precio y stock. Podés consultar disponibilidad mientras tanto."
           }
           action={
-            <a
-              href={whatsappUrl("Hola, quisiera consultar por los productos disponibles en el portal.")}
-              target="_blank"
-              rel="noreferrer"
+            <Link
+              href="/portal/ayuda"
               className="btn-mint btn-sm"
             >
               <MessageCircle className="size-3.5" />
-              Consultar por WhatsApp
-            </a>
+              Consultar al administrador
+            </Link>
           }
         />
       ) : (

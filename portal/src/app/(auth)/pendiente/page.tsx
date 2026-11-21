@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { Clock3, LogOut, MessageCircle, ShieldAlert, XCircle } from "lucide-react";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { signOutAction } from "@/lib/actions/auth";
-import { whatsappUrl } from "@/lib/config";
 import { formatDate } from "@/lib/format";
 import { ProfileStatusBadge } from "@/components/ui/profile-status-badge";
 import type { ProfileStatus } from "@/lib/types";
@@ -40,14 +39,14 @@ export default async function PendingPage() {
             icon: XCircle,
             title: "Tu solicitud fue rechazada",
             description:
-              "Escribinos por WhatsApp para revisar tu situación y resolver el inconveniente.",
+              "Enviá una solicitud interna para revisar tu situación y resolver el inconveniente.",
             iconClass: "bg-rose-100 text-rose-700",
           }
         : {
             icon: ShieldAlert,
             title: "Tu cuenta está suspendida",
             description:
-              "Escribinos por WhatsApp para revisar tu situación y resolver el inconveniente.",
+              "Enviá una solicitud interna para revisar tu situación y resolver el inconveniente.",
             iconClass: "bg-slate-100 text-slate-700",
           };
 
@@ -101,17 +100,13 @@ export default async function PendingPage() {
         <Link href="/pendiente" className="btn-outline btn-sm">
           Actualizar estado
         </Link>
-        <a
-          href={whatsappUrl(
-            "Hola, consulto por el estado de mi cuenta del portal de Un Viaje Astral.",
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          href="/ayuda/solicitar?motivo=general"
           className="btn-primary btn-sm"
         >
           <MessageCircle className="size-3.5" />
-          Escribir por WhatsApp
-        </a>
+          Solicitar ayuda al administrador
+        </Link>
       </div>
 
       <form action={signOutAction} className="mt-6">

@@ -15,7 +15,7 @@ import {
   DOCUMENT_LABELS,
   PATIENT_DOCUMENT_TYPES,
 } from "@/lib/documents";
-import { whatsappUrl } from "@/lib/config";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Documentación",
@@ -37,8 +37,8 @@ export default async function DocumentsPage() {
         <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
           <Clock3 className="mt-0.5 size-4 shrink-0" />
           <p>
-            La carga de documentación todavía no está habilitada. Escribinos por
-            WhatsApp y lo resolvemos con el equipo.
+            La carga de documentación todavía no está habilitada. Contactá al
+            administrador desde Ayuda y chat.
           </p>
         </div>
       ) : null}
@@ -94,20 +94,16 @@ export default async function DocumentsPage() {
         <div className="rounded-3xl border border-ink/10 bg-white/50 p-5 text-xs leading-relaxed text-muted">
           <p className="font-semibold text-ink">¿Necesitás ayuda?</p>
           <p className="mt-1">
-            Si tu certificado o credencial está en trámite, escribinos y
-            coordinamos la forma de acreditarlo.
+            Si tu certificado o credencial está en trámite, escribí al
+            administrador desde el chat para coordinar la forma de acreditarlo.
           </p>
-          <a
-            href={whatsappUrl(
-              "Hola, necesito ayuda con la documentación de mi cuenta del portal.",
-            )}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            href="/portal/ayuda"
             className="btn-outline btn-sm mt-4"
           >
             <MessageCircle className="size-3.5" />
             Contactar al equipo
-          </a>
+          </Link>
         </div>
       </section>
     </div>

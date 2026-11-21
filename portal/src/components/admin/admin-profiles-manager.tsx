@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -93,8 +93,9 @@ export function AdminProfilesManager({
   currentAdminId: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("buscar") ?? "");
   const [status, setStatus] = useState<StatusFilter>("todos");
   const [role, setRole] = useState<RoleFilter>("todos");
   const [branchId, setBranchId] = useState<string>("todas");
@@ -111,6 +112,10 @@ export function AdminProfilesManager({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSaved, setPasswordSaved] = useState(false);
+
+  useEffect(() => {
+    setSearch(searchParams.get("buscar") ?? "");
+  }, [searchParams]);
 
   const counts = useMemo(
     () => ({

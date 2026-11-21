@@ -96,7 +96,7 @@ Después de completar `.env.local`:
 npm run verify:supabase
 ```
 
-El comando comprueba la URL, las seis tablas (incluidas `branches` y `patient_documents`), las columnas `branch_id`, las sedes iniciales, las RPC principales, los buckets `product-images` y `patient-documents`, el acceso con la anon/publishable key y el perfil del administrador. No imprime claves ni datos personales. Si falta alguna migración, lo indica con un `✗`.
+El comando comprueba la URL, las tablas operativas y de soporte, las columnas `branch_id`, las sedes iniciales, las RPC principales, los buckets `product-images` y `patient-documents`, el acceso con la anon/publishable key y el perfil del administrador. No imprime claves ni datos personales. Si falta alguna migración, lo indica con un `✗`.
 
 ## Configurar Supabase
 
@@ -121,6 +121,7 @@ Las migraciones están en `supabase/migrations/` y deben ejecutarse **en orden**
 9. `202610280001_profile_approval.sql` — habilitación de cuentas, email y estado en perfiles, y RLS de aprobación.
 10. `202611200001_profile_approval_hardening.sql` — deniega por defecto el acceso de perfiles sin estado y elimina las copias recuperables de contraseñas.
 11. `202611200002_profiles_realtime.sql` — publica inserciones y cambios de perfiles para actualizar el panel administrativo en tiempo real.
+12. `202611200003_secure_support_chat.sql` — agrega chat E2E, acceso RLS por participante, expiración y borrado periódico de mensajes, más solicitudes internas de ayuda con retención máxima de 7 días y actualizaciones Realtime.
 
 **Opción A: SQL Editor**
 
@@ -128,7 +129,9 @@ Abrí el SQL Editor de Supabase y ejecutá el contenido completo de cada archivo
 
 Para una aplicación nueva, también podés abrir `supabase/apply-all.sql`, copiar todo su contenido y ejecutarlo. Incluye todas las migraciones en orden dentro de una transacción; si una sentencia falla, no se aplica ningún cambio.
 
-Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql`, `202611200001_profile_approval_hardening.sql` y `202611200002_profiles_realtime.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación.
+Si el portal ya estaba funcionando antes de la versión multi-sede, **no ejecutes `apply-all.sql` completo sobre la base existente**. Aplicá, en orden, únicamente las migraciones incrementales que falten: `202610260001_multi_branch.sql`, `202610270001_patient_documents.sql`, `202610280001_profile_approval.sql`, `202611200001_profile_approval_hardening.sql`, `202611200002_profiles_realtime.sql` y `202611200003_secure_support_chat.sql`. El backfill multi-sede asigna los datos históricos a **Paraná**; Villaguay comienza con el catálogo vacío para que el administrador lo cargue de forma independiente. La migración de aprobación conserva el acceso de los perfiles existentes y deja las cuentas nuevas pendientes de aprobación.
+
+La migración de chat habilita `pg_cron` para borrar mensajes cifrados vencidos cada minuto. El chat usa ECDH P-256 y AES-GCM en el navegador; el servidor solo almacena texto cifrado. Cada cuenta vincula su única clave privada al almacenamiento local del navegador y no se sincroniza ni se puede recuperar; para descifrar, usá siempre ese navegador y no borres sus datos. El chat y el contenido local se limpian después de 60 minutos sin mensajes. Las solicitudes sin sesión guardan solo nombre, email, teléfono y motivo, no texto libre ni contraseñas; aparecen en tiempo real en el panel y se eliminan a los 7 días.
 
 Verificá la conexión y las migraciones aplicadas con `npm run verify:supabase` desde `portal/`. No habilites registros en producción hasta que el verificador confirme las columnas `profiles.status`/`profiles.email`, las sedes y el bucket privado de documentación.
 
@@ -190,7 +193,7 @@ El script:
 - si no existe, crea el usuario con email confirmado;
 - crea o actualiza el perfil y lo marca como `admin`.
 
-Si el usuario ya existía, **no cambia su contraseña**: solo promueve el perfil. Para cambiar la clave de un usuario existente, usá *Authentication → Users* en Supabase o generá un enlace de recuperación.
+Si el usuario ya existía, **no cambia su contraseña**: solo promueve el perfil. Para restablecer la contraseña de un paciente, usá el panel de perfiles del administrador; los enlaces automáticos de recuperación por correo no forman parte del flujo del portal.
 
 Después podés iniciar sesión en `/login` y entrar a `/admin`.
 
@@ -345,7 +348,7 @@ portal/
 
 - No hay cobro online ni integración con pasarela de pagos.
 - No hay envío automático de emails de cambio de estado; el seguimiento se consulta en el portal.
-- No hay recuperación automática de contraseña desde la interfaz. Se puede generar un enlace desde Supabase Auth.
+- La recuperación de acceso se solicita desde `/ayuda/solicitar` y requiere verificación y restablecimiento manual por un administrador; no se envía un correo automático.
 - Las analíticas usan períodos móviles (últimos 7 días, 30 días o 12 meses), no semanas o meses calendario.
 - El catálogo semilla incluye fichas inactivas de relleno; no deben publicarse hasta completar datos reales.
 

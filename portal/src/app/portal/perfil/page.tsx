@@ -17,7 +17,6 @@ import { requireProfile, getCurrentUser } from "@/lib/auth";
 import { getBranches } from "@/lib/data";
 import { findBranchById } from "@/lib/branches";
 import { formatDate } from "@/lib/format";
-import { whatsappUrl } from "@/lib/config";
 import { initials } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -120,17 +119,13 @@ export default async function ProfilePage() {
                 <FileText className="size-3.5" />
                 Condiciones y privacidad
               </Link>
-              <a
-                href={whatsappUrl(
-                  "Hola, necesito ayuda con mi cuenta del portal de pacientes.",
-                )}
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                href="/portal/ayuda"
                 className="btn-ghost btn-sm"
               >
                 <MessageCircle className="size-3.5" />
                 Ayuda con mi cuenta
-              </a>
+              </Link>
             </div>
           </section>
 
@@ -140,8 +135,9 @@ export default async function ProfilePage() {
               ¿Olvidaste tu contraseña?
             </div>
             <p className="mt-1">
-              Por seguridad, la recuperación se coordina con el equipo. Escribinos
-              por WhatsApp y te ayudamos a restablecer el acceso.
+              Por seguridad, el administrador te ayuda a restablecer el acceso
+              desde el panel. Si no podés ingresar, enviá una solicitud interna
+              desde la pantalla de inicio de sesión.
             </p>
           </section>
         </aside>

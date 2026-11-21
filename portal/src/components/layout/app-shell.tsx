@@ -16,6 +16,7 @@ import {
   Package,
   ShoppingBag,
   Store,
+  Inbox,
   UserRound,
   Users,
   X,
@@ -23,7 +24,6 @@ import {
 import { Logo } from "@/components/ui/logo";
 import { useCart } from "@/components/providers/cart-provider";
 import { signOutAction } from "@/lib/actions/auth";
-import { whatsappUrl } from "@/lib/config";
 import type { Profile } from "@/lib/types";
 import { cn, initials } from "@/lib/utils";
 
@@ -38,10 +38,12 @@ type NavItem = {
 export function AppShell({
   profile,
   mode,
+  supportCounts,
   children,
 }: {
   profile: Profile;
   mode: "portal" | "admin";
+  supportCounts?: { chats: number; requests: number };
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -78,12 +80,27 @@ export function AppShell({
     { href: "/portal/pedidos", label: "Mis pedidos", icon: <Package className="size-4" /> },
     { href: "/portal/documentacion", label: "Documentación", icon: <FileText className="size-4" /> },
     { href: "/portal/perfil", label: "Mi perfil", icon: <UserRound className="size-4" /> },
+    ...(profile.role === "patient"
+      ? [{ href: "/portal/ayuda", label: "Ayuda y chat", icon: <MessageCircle className="size-4" /> }]
+      : []),
   ];
 
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Resumen", icon: <LayoutDashboard className="size-4" />, exact: true },
     { href: "/admin/pedidos", label: "Pedidos", icon: <ClipboardList className="size-4" /> },
     { href: "/admin/perfiles", label: "Perfiles", icon: <Users className="size-4" /> },
+    {
+      href: "/admin/mensajes",
+      label: "Chats",
+      icon: <MessageCircle className="size-4" />,
+      badge: supportCounts?.chats,
+    },
+    {
+      href: "/admin/solicitudes",
+      label: "Solicitudes",
+      icon: <Inbox className="size-4" />,
+      badge: supportCounts?.requests,
+    },
     { href: "/admin/catalogo", label: "Catálogo", icon: <Boxes className="size-4" /> },
     { href: "/admin/analiticas", label: "Analíticas", icon: <BarChart3 className="size-4" /> },
   ];
@@ -158,15 +175,6 @@ export function AppShell({
             Ver portal de paciente
           </Link>
         ) : null}
-        <a
-          href={whatsappUrl("Hola, necesito ayuda con mi cuenta del portal de Un Viaje Astral.")}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium text-muted transition hover:bg-ink/5 hover:text-ink"
-        >
-          <MessageCircle className="size-4" />
-          Ayuda por WhatsApp
-        </a>
       </div>
 
       <div className="mt-auto pt-8">

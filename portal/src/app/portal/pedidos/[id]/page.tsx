@@ -20,7 +20,6 @@ import { CancelOrderButton } from "@/components/orders/cancel-order-button";
 import { ProductImage } from "@/components/catalog/product-image";
 import { requireProfile } from "@/lib/auth";
 import { getPatientOrder } from "@/lib/data";
-import { whatsappUrl } from "@/lib/config";
 import {
   CATEGORY_LABELS,
   formatARS,
@@ -84,8 +83,8 @@ export default async function OrderDetailPage({
             </p>
             <p className="mt-1 text-xs leading-relaxed text-green-text">
               El equipo va a revisar stock y pago. Si elegiste transferencia,
-              abajo encontrás las instrucciones. También podemos escribirte por
-              WhatsApp.
+              abajo encontrás las instrucciones. También podés escribirle al
+              administrador desde Ayuda y chat.
             </p>
           </div>
         </div>
@@ -113,17 +112,13 @@ export default async function OrderDetailPage({
               orderNumber={order.order_number}
             />
           ) : null}
-          <a
-            href={whatsappUrl(
-              `Hola, quiero consultar por el pedido ${formatOrderNumber(order.order_number)} del portal.`,
-            )}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            href="/portal/ayuda"
             className="btn-outline btn-sm"
           >
             <MessageCircle className="size-3.5" />
             Consultar
-          </a>
+          </Link>
         </div>
       </header>
 
